@@ -1,9 +1,3 @@
-"""Tests for InMemoryDocumentRepository.
-
-These double as the canonical contract suite: the same behaviors must hold for
-the SQLModel implementation once it is integration-tested.
-"""
-
 from uuid import UUID, uuid4
 
 import pytest

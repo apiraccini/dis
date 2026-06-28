@@ -1,14 +1,3 @@
-"""SQLModel (async) DocumentRepository implementation.
-
-Production repository backed by a Postgres async session.
-
-NOTE: This implementation is written to satisfy the DocumentRepository contract
-but is NOT covered by live-Postgres integration tests yet. It is type-checked
-(`ty`) and linted. A later refinement task adds a `db-test` compose service and
-a thin integration suite that exercises the unique content_hash constraint, the
-tags ARRAY + GIN index, and FK/array behavior against real Postgres.
-"""
-
 from __future__ import annotations
 
 from uuid import UUID

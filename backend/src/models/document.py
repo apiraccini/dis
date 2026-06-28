@@ -1,9 +1,3 @@
-"""Document table model + tag normalization helper.
-
-Tags are stored as a Postgres `text[]` ARRAY column with a GIN index (no Tag
-entity, no link table). See `sdd/specs/documents.md`.
-"""
-
 from __future__ import annotations
 
 import enum

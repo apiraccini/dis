@@ -1,0 +1,201 @@
+from __future__ import annotations
+
+import hashlib
+
+import pytest
+
+from src.models.document import Document, DocumentStatus
+from src.repositories.in_memory import InMemoryDocumentRepository, InMemoryVectorStore
+from src.services.ingestion import IngestionService
+from src.services.protocols import Embedder
+from tests._fakes import FakeChunker, FakeEmbedder, FakeParser
+
+PARSED_TEXT = 'alpha bravo charlie delta echo'
+
+
+def _hash(text: str) -> str:
+    return hashlib.sha256(text.encode()).hexdigest()
+
+
+def _make_service[E: Embedder](
+    *,
+    parsed_text: str = PARSED_TEXT,
+    chunker: FakeChunker | None = None,
+    embedder: E,
+) -> tuple[
+    IngestionService,
+    FakeParser,
+    FakeChunker,
+    E,
+    InMemoryDocumentRepository,
+    InMemoryVectorStore,
+]:
+    parser = FakeParser(parsed_text)
+    ch = chunker or FakeChunker(words_per_chunk=2)
+    docs = InMemoryDocumentRepository()
+    vectors = InMemoryVectorStore()
+    service = IngestionService(
+        parser=parser,
+        chunker=ch,
+        embedder=embedder,
+        documents=docs,
+        vectors=vectors,
+    )
+    return service, parser, ch, embedder, docs, vectors
+
+
+async def test_prepare_dedup_hit_returns_existing_doc_unchanged() -> None:
+    service, parser, ch, emb, docs, vectors = _make_service(embedder=FakeEmbedder(dimension=4))
+    existing = Document(
+        filename='old.pdf',
+        content_hash=_hash(PARSED_TEXT),
+        parsed_text=PARSED_TEXT,
+        tags=['compliance'],
+        size_bytes=99,
+        content_type='application/pdf',
+    )
+    await docs.create(existing)
+
+    result = await service.prepare(content=b'upload bytes', filename='new.pdf', tags=['hr'])
+
+    assert result.id == existing.id
+    assert result.content_hash == _hash(PARSED_TEXT)
+    # No expensive work ran.
+    assert parser.calls == [(b'upload bytes', 'new.pdf')]
+    assert ch.calls == []
+    assert emb.calls == []
+    # No vectors upserted.
+    assert await vectors.search(query=[1.0], top_k=10) == []
+
+
+async def test_prepare_dedup_miss_creates_processing_doc_with_hashed_parsed_text() -> None:
+    service, _, _, _, docs, _ = _make_service(embedder=FakeEmbedder(dimension=4))
+
+    result = await service.prepare(
+        content=b'raw upload bytes',
+        filename='report.txt',
+        tags=['Compliance', ' compliance ', 'HR'],
+    )
+
+    assert result.id is not None
+    assert result.status == DocumentStatus.processing
+    assert result.content_hash == _hash(PARSED_TEXT)
+    assert result.parsed_text == PARSED_TEXT
+    assert result.tags == ['compliance', 'hr']  # normalized + deduped
+    assert result.size_bytes == len(b'raw upload bytes')
+    assert result.filename == 'report.txt'
+
+    fetched = await docs.get_by_id(result.id)
+    assert fetched is not None
+    assert fetched.status == DocumentStatus.processing
+
+
+async def test_prepare_hashes_parsed_text_not_raw_bytes() -> None:
+    # Two different raw uploads that parse to the same text must dedup.
+    service, _, _, _, docs, _ = _make_service(
+        parsed_text='same parsed text', embedder=FakeEmbedder(dimension=4)
+    )
+
+    first = await service.prepare(content=b'bytes-one', filename='a.txt', tags=[])
+    second = await service.prepare(content=b'bytes-two-different', filename='b.txt', tags=[])
+
+    assert second.id == first.id  # dedup hit
+    assert second.content_hash == first.content_hash
+    # Both parse calls ran (parse is cheap), but only one document was created.
+    all_docs, total = await docs.list_documents()
+    assert total == 1
+    assert all_docs[0].size_bytes == len(b'bytes-one')  # first upload's size retained
+
+
+async def test_finalize_happy_path_sets_ready_and_chunk_count() -> None:
+    service, _, ch, emb, _docs, vectors = _make_service(embedder=FakeEmbedder(dimension=4))
+
+    prepared = await service.prepare(content=b'data', filename='doc.txt', tags=['compliance'])
+
+    result = await service.finalize(prepared.id)
+
+    assert result.status == DocumentStatus.ready
+    expected_chunks = ch.chunk(PARSED_TEXT)
+    assert result.chunk_count == len(expected_chunks)
+    # Expensive work ran.
+    assert len(emb.calls) == 1
+    assert len(emb.calls[0]) == len(expected_chunks)
+    # Vectors stored.
+    query_vector = emb.returns[0][0]
+    hits = await vectors.search(query=query_vector, top_k=10)
+    assert len(hits) == len(expected_chunks)
+    assert all(h.document_id == prepared.id for h in hits)
+
+
+async def test_finalize_upserts_chunk_records_with_filename_tags_and_indices() -> None:
+    service, _, ch, emb, _docs, vectors = _make_service(embedder=FakeEmbedder(dimension=4))
+    prepared = await service.prepare(
+        content=b'data', filename='report.pdf', tags=['Compliance', 'HR']
+    )
+
+    await service.finalize(prepared.id)
+
+    expected_chunks = ch.chunk(PARSED_TEXT)
+    expected_vectors = emb.returns[0]
+    query_vector = expected_vectors[0]
+    hits = await vectors.search(query=query_vector, top_k=10)
+    hits_by_index = {h.chunk_index: h for h in hits}
+
+    assert set(hits_by_index) == set(range(len(expected_chunks)))
+    for i in range(len(expected_chunks)):
+        h = hits_by_index[i]
+        assert h.document_id == prepared.id
+        assert h.document_name == 'report.pdf'  # filename, not doc id
+        assert h.tags == ['compliance', 'hr']  # normalized tags denormalized into payload
+        assert h.text == expected_chunks[i]
+
+
+async def test_finalize_embedder_failure_sets_failed_and_upserts_no_vectors() -> None:
+    from tests._failing_embedder import FailingEmbedder
+
+    failing = FailingEmbedder(dimension=4, exc=RuntimeError('embedder exploded'))
+    service, _, _, _, docs, vectors = _make_service(embedder=failing)
+    prepared = await service.prepare(content=b'data', filename='doc.txt', tags=[])
+
+    with pytest.raises(RuntimeError, match='embedder exploded'):
+        await service.finalize(prepared.id)
+
+    failed = await docs.get_by_id(prepared.id)
+    assert failed is not None
+    assert failed.status == DocumentStatus.failed
+    assert failed.error_message == 'embedder exploded'
+    assert failed.chunk_count == 0
+    # No vectors were upserted (upsert is atomic per document).
+    assert await vectors.search(query=[1.0, 0.0, 0.0, 0.0], top_k=10) == []
+
+
+async def test_ingest_full_pipeline_composes_prepare_and_finalize() -> None:
+    service, _, ch, emb, docs, vectors = _make_service(embedder=FakeEmbedder(dimension=4))
+
+    result = await service.ingest(content=b'full upload', filename='full.txt', tags=['x'])
+
+    assert result.status == DocumentStatus.ready
+    expected_chunks = ch.chunk(PARSED_TEXT)
+    assert result.chunk_count == len(expected_chunks)
+    # One document created and ready.
+    rows, total = await docs.list_documents()
+    assert total == 1
+    assert rows[0].status == DocumentStatus.ready
+    # Vectors searchable end-to-end.
+    query_vector = emb.returns[0][0]
+    hits = await vectors.search(query=query_vector, top_k=10)
+    assert len(hits) == len(expected_chunks)
+    assert all(h.document_name == 'full.txt' for h in hits)
+
+
+async def test_ingest_dedup_skips_finalize() -> None:
+    service, _, ch, emb, _, _ = _make_service(embedder=FakeEmbedder(dimension=4))
+
+    first = await service.ingest(content=b'one', filename='a.txt', tags=[])
+    second = await service.ingest(content=b'two', filename='b.txt', tags=[])
+
+    assert second.id == first.id
+    assert second.status == DocumentStatus.ready
+    # Chunker called only once (first ingest); second was a dedup hit in prepare.
+    assert len(ch.calls) == 1
+    assert len(emb.calls) == 1

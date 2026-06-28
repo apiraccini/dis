@@ -1,19 +1,15 @@
-"""In-memory DocumentRepository implementation.
-
-Canonical test double: proves the Protocol contract without a live database.
-Also usable as the repository backing service-layer / MCP tests in later tasks.
-"""
-
 from __future__ import annotations
 
 import copy
+import math
 import uuid
 from uuid import UUID
 
 from src.core.errors import DocumentNotFoundError, DuplicateDocumentError
 from src.models.document import Document, DocumentStatus, normalize_tags
+from src.repositories.protocols import ChunkRecord, SearchHit
 
-__all__ = ['InMemoryDocumentRepository']
+__all__ = ['InMemoryDocumentRepository', 'InMemoryVectorStore']
 
 
 class InMemoryDocumentRepository:
@@ -84,3 +80,73 @@ class InMemoryDocumentRepository:
         if document_id not in self._store:
             raise DocumentNotFoundError(f'no document with id {document_id}')
         del self._store[document_id]
+
+
+class InMemoryVectorStore:
+    """Dict-backed async vector store (canonical test double).
+
+    Cosine similarity over stored vectors; tag/document_id filters applied
+    in-memory to mirror the filter pushdown a Qdrant implementation will do.
+    """
+
+    def __init__(self) -> None:
+        self._vectors: dict[UUID, list[tuple[ChunkRecord, list[float]]]] = {}
+
+    async def upsert(
+        self,
+        document_id: UUID,
+        chunks: list[ChunkRecord],
+        vectors: list[list[float]],
+    ) -> None:
+        if len(chunks) != len(vectors):
+            raise ValueError('chunks and vectors must have equal length')
+        # Atomic replace: re-ingestion overwrites prior chunks for the document.
+        self._vectors[document_id] = [
+            (copy.deepcopy(c), list(v)) for c, v in zip(chunks, vectors, strict=True)
+        ]
+
+    async def delete_by_document(self, document_id: UUID) -> None:
+        self._vectors.pop(document_id, None)
+
+    async def search(
+        self,
+        query: list[float],
+        top_k: int,
+        *,
+        tags: list[str] | None = None,
+        document_ids: list[UUID] | None = None,
+    ) -> list[SearchHit]:
+        tags_norm = {t.strip().lower() for t in tags} if tags else None
+        ids_norm = set(document_ids) if document_ids else None
+
+        scored: list[SearchHit] = []
+        for doc_id, entries in self._vectors.items():
+            if ids_norm is not None and doc_id not in ids_norm:
+                continue
+            for chunk, vec in entries:
+                if tags_norm is not None and not (
+                    tags_norm & {t.strip().lower() for t in chunk.tags}
+                ):
+                    continue
+                score = _cosine(query, vec)
+                scored.append(
+                    SearchHit(
+                        document_id=doc_id,
+                        document_name=chunk.document_name,
+                        tags=list(chunk.tags),
+                        chunk_index=chunk.chunk_index,
+                        text=chunk.text,
+                        score=score,
+                    )
+                )
+        scored.sort(key=lambda h: h.score, reverse=True)
+        return scored[:top_k]
+
+
+def _cosine(a: list[float], b: list[float]) -> float:
+    dot = sum(x * y for x, y in zip(a, b, strict=True))
+    na = math.sqrt(sum(x * x for x in a))
+    nb = math.sqrt(sum(y * y for y in b))
+    if na == 0 or nb == 0:
+        return 0.0
+    return dot / (na * nb)

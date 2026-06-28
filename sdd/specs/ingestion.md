@@ -1,0 +1,10 @@
+- **Requirement: Pipeline order** — Ingestion SHALL parse, then hash the parsed text, then dedup-check, then create the document as `processing`, then chunk, then embed, then upsert vectors, then mark `ready`.
+  - Scenario: dedup hit short-circuits — GIVEN a document with content_hash H exists, WHEN ingestion produces the same hash H, THEN the existing document is returned unchanged and no chunking, embedding, or upsert occurs.
+- **Requirement: Content hash source** — The content hash SHALL be SHA-256 of the parsed text, not the raw upload bytes.
+  - Scenario: different bytes, same parsed text — GIVEN two uploads with different bytes that parse to the same text, WHEN both are ingested, THEN the second is treated as a duplicate.
+- **Requirement: Two-phase entry** — Ingestion SHALL expose `prepare` (parse → hash → dedup → create as processing) and `finalize` (chunk → embed → upsert → set status); a full `ingest` SHALL compose both.
+  - Scenario: async upload — GIVEN an upload, WHEN `prepare` runs, THEN a Document exists with status `processing` and parsed text persisted, and `finalize` may run later using only the document id.
+- **Requirement: Lifecycle ownership** — The service SHALL set status `processing` on creation, status `ready` with `chunk_count` on success, and status `failed` with `error_message` on error.
+- **Requirement: Failure handling** — Any exception during `finalize` SHALL set status `failed` with the error message and SHALL NOT upsert partial vectors (upsert is atomic per document).
+  - Scenario: embedder fails — GIVEN a document in `processing`, WHEN the embedder raises during `finalize`, THEN the document's status becomes `failed`, its error_message is set, and no vectors are upserted.
+- **Requirement: Chunk count** — The service SHALL set `chunk_count` to the number of chunks produced, after a successful upsert.

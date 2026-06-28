@@ -30,8 +30,8 @@ Four services (see `docker-compose.yaml`):
 |---|---|---|
 | Vector store | **Qdrant** | Dedicated, production-like vector DB. Payload filtering lets `search_by_tag` / `search_by_document` push the filter into the vector query (single round-trip, no post-filtering). Postgres+pgvector was considered but a dedicated store matches the "production-like" brief and keeps vector concerns out of the relational schema. |
 | Relational store | **PostgreSQL 17** via SQLModel/asyncpg | Document metadata (filename, tags, upload date, chunk count) is relational; Postgres is standard, reliable, and already in the stack. |
-| Embedding model | **OpenAI** (model TBD) | An OpenAI key is provided per the brief. The exact model (`text-embedding-3-small`/`-large`) is decided in the first SDD session once the vector dimension and cost/quality trade-off are pinned; `EMBEDDING_MODEL`/`EMBEDDING_DIMENSIONS` are empty in `.env.example` until then. |
-| Chunking | **semchunk** (semantic) | Semantic chunking splits on natural topic boundaries, preserving meaning per chunk — better retrieval quality than fixed-size char splits. Wrapped behind a `Chunker` Protocol so the strategy is swappable. |
+| Embedding model | **Qwen3-Embedding-8B** via OpenRouter | 8B-param multilingual model (100+ languages), 32k context, native dim up to 4096 with Matryoshka truncation. Served through OpenRouter's OpenAI-compatible embeddings endpoint (`base_url=https://openrouter.ai/api/v1`) using the existing `openai` SDK — no new dependency. Truncated to **1536 dims** (strong retrieval at ~40% of 4096 storage cost). Supports asymmetric retrieval via `input_type` (`search_document` at index time, `search_query` at query time). Chosen over OpenAI `text-embedding-3-small` to exercise a non-OpenAI provider through a compatible API and for stronger multilingual coverage relevant to an enterprise KB. |
+| Chunking | **semchunk** (semantic, ~1024 tokens, no overlap) | Semantic chunking splits on natural topic boundaries, preserving meaning per chunk — better retrieval quality than fixed-size char splits. ~1024-token chunks balance context-per-chunk against retrieval granularity; no overlap because semantic boundaries already preserve meaning across splits (keeps chunk count clean and dedup simple). Wrapped behind a `Chunker` Protocol so the strategy is swappable; size/overlap configurable in `config.py`. |
 | Parsing | **liteparse** | Lightweight multi-format parser (PDF + plain text minimum). Wrapped behind a `Parser` Protocol. |
 | MCP transport | **Streamable HTTP** | Required by the brief. Served via FastMCP's `http_app(stateless_http=True, json_response=True)` mounted into the FastAPI app at `/mcp`. Stateless mode means no server-side session affinity is needed to scale horizontally. |
 | MCP SDK | **`fastmcp`** (standalone, PrefectHQ/fastmcp) | Cleaner mounting API than the `mcp` SDK's built-in server: `http_app()` returns an ASGI app with a `.lifespan` attribute, composed into FastAPI via `combine_lifespans`. |
@@ -78,7 +78,7 @@ MCP clients connect to `/mcp` and the SDK handles the protocol; raw HTTP probes 
 
 ### Backend
 - [x] Data models + repositories (Document [parsed content + content-hash dedup], Tag, DocumentTag many-to-many link; SQLModel tables + Protocol-based repos; no Chunk table — chunks live in Qdrant)  _(done with a revision: tags stored as a Postgres `text[]` column on Document instead of a Tag/DocumentTag link — see `sdd/specs/documents.md`)_
-- [ ] Ingestion pipeline (liteparse parser, semchunk chunker, OpenAI embedder; standalone services storing chunk text + embedding + payload in Qdrant, parsed content + metadata in Postgres)
+- [~] Ingestion pipeline (liteparse parser, semchunk chunker, OpenRouter embedder; standalone services storing chunk text + embedding + payload in Qdrant, parsed content + metadata in Postgres)  _(orchestration done: `IngestionService` two-phase prepare/finalize + `VectorStore` Protocol + `InMemoryVectorStore`, fully unit-tested behind fakes; concrete adapters — liteparse, semchunk, OpenRouter embedder, Qdrant store — pending)_
 - [ ] Document management REST API (upload → triggers ingestion, list, delete → cascades to Qdrant; dedup via content hash)
 - [ ] MCP tools (`list_documents`, `list_tags`, `search`, `search_by_tag`, `search_by_document`) + tool-design rationale
 
@@ -90,7 +90,7 @@ MCP clients connect to `/mcp` and the SDK handles the protocol; raw HTTP probes 
 - **No Alembic**: tables auto-created from `SQLModel.metadata.create_all`; no migration history. Fine at this scale; revisit if schema evolves.
 - **REST API unauthenticated**: internal to the compose network only. Add auth before any public exposure.
 - **No live deployment / demo video**: out of scope for the scaffold; `docker compose` is the run method. Deployment and the demo video are deferred to a later session.
-- **Embedding model undecided**: `EMBEDDING_MODEL`/`EMBEDDING_DIMENSIONS` empty in `.env.example`; set during the ingestion-pipeline SDD session.
+- **Embedding model**: `qwen/qwen3-embedding-8b` via OpenRouter, 1536 dims (Matryoshka). Only `OPENROUTER_API_KEY` is secret; model/dimensions/chunk params live in `config.py` with defaults.
 
 ## Repo layout
 ```

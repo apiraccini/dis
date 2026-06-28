@@ -1,0 +1,8 @@
+- **Requirement: VectorStore protocol** — A vector store SHALL expose an async Protocol with operations: upsert, delete_by_document, search.
+- **Requirement: Chunk payload** — A chunk record SHALL carry document_id, document_name, tags, chunk_index, and text.
+- **Requirement: Search result** — A search hit SHALL carry document_id, document_name, tags, chunk_index, text, and a similarity score.
+- **Requirement: Filter pushdown** — search SHALL accept optional `tags` and `document_ids` filters applied within the query, returning only hits whose source document matches; tags use OR semantics (document matches if it carries at least one requested tag), document_ids use membership.
+- **Requirement: Top-k ranking** — search SHALL return at most `top_k` hits ranked by descending similarity score.
+- **Requirement: Atomic upsert** — upsert SHALL replace all existing chunks for a document atomically; re-ingesting the same document overwrites its prior chunks.
+- **Requirement: Document name denormalization** — The chunk payload SHALL carry `document_name` so search results return the source filename without a relational join.
+- **Requirement: Swappable implementations** — An in-memory implementation SHALL exist behind the Protocol as the canonical test double; a vector-store-backed implementation arrives in a later change.

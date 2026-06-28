@@ -1,19 +1,18 @@
-"""Repository Protocols (interfaces) for data access.
-
-Each Protocol is async and implementation-agnostic. Two implementations back
-each protocol: a SQLModel impl (production) and an in-memory impl (canonical
-test double). Both raise the domain exceptions from `src.core.errors`.
-"""
-
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Protocol, runtime_checkable
 from uuid import UUID
 
 from src.core.errors import DocumentNotFoundError, DuplicateDocumentError  # noqa: F401
 from src.models.document import Document, DocumentStatus
 
-__all__ = ['DocumentRepository']
+__all__ = [
+    'ChunkRecord',
+    'DocumentRepository',
+    'SearchHit',
+    'VectorStore',
+]
 
 
 @runtime_checkable
@@ -54,3 +53,55 @@ class DocumentRepository(Protocol):
     ) -> Document: ...
 
     async def delete(self, document_id: UUID) -> None: ...
+
+
+@dataclass(frozen=True)
+class ChunkRecord:
+    """Payload stored alongside each vector."""
+
+    document_id: UUID
+    document_name: str
+    tags: list[str]
+    chunk_index: int
+    text: str
+
+
+@dataclass(frozen=True)
+class SearchHit:
+    """A single search result: a chunk plus its similarity score."""
+
+    document_id: UUID
+    document_name: str
+    tags: list[str]
+    chunk_index: int
+    text: str
+    score: float
+
+
+@runtime_checkable
+class VectorStore(Protocol):
+    """Async vector store over chunk embeddings.
+
+    Contract:
+    - `upsert` atomically replaces all chunks for a document.
+    - `search` returns at most `top_k` hits ranked by descending similarity;
+      `tags` (OR) and `document_ids` (membership) are pushed into the query.
+    """
+
+    async def upsert(
+        self,
+        document_id: UUID,
+        chunks: list[ChunkRecord],
+        vectors: list[list[float]],
+    ) -> None: ...
+
+    async def delete_by_document(self, document_id: UUID) -> None: ...
+
+    async def search(
+        self,
+        query: list[float],
+        top_k: int,
+        *,
+        tags: list[str] | None = None,
+        document_ids: list[UUID] | None = None,
+    ) -> list[SearchHit]: ...
