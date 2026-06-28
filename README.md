@@ -8,8 +8,8 @@ Backend infrastructure for a tagged-document knowledge base: a document-manageme
 
 Four services (see `docker-compose.yaml`):
 
-- **db** — PostgreSQL 17: raw document metadata (documents, tags, chunks).
-- **qdrant** — vector store: chunk embeddings + payload (document id/name, tags) for filtered semantic search.
+- **db** — PostgreSQL 17: document metadata (documents, tags) + parsed full text.
+- **qdrant** — vector store: chunk text + embeddings + payload (document id/name, tags) for filtered semantic search. No chunk rows in Postgres.
 - **backend** — one FastAPI app serving:
   - REST API for document management + ingestion (`/api/...`)
   - MCP server mounted at `/mcp` (FastMCP, Streamable HTTP, static Bearer-token auth)
@@ -77,9 +77,9 @@ MCP clients connect to `/mcp` and the SDK handles the protocol; raw HTTP probes 
 ## Backlog
 
 ### Backend
-- [ ] Data models + repositories (Document, Tag, Chunk; SQLModel tables + Protocol-based repos)
-- [ ] Document management REST API (upload, list, delete; schemas + endpoints; re-upload does not duplicate)
-- [ ] Ingestion pipeline (liteparse parser, semchunk chunker, embedder impl, Qdrant storage, dedup)
+- [x] Data models + repositories (Document [parsed content + content-hash dedup], Tag, DocumentTag many-to-many link; SQLModel tables + Protocol-based repos; no Chunk table — chunks live in Qdrant)  _(done with a revision: tags stored as a Postgres `text[]` column on Document instead of a Tag/DocumentTag link — see `sdd/specs/documents.md`)_
+- [ ] Ingestion pipeline (liteparse parser, semchunk chunker, OpenAI embedder; standalone services storing chunk text + embedding + payload in Qdrant, parsed content + metadata in Postgres)
+- [ ] Document management REST API (upload → triggers ingestion, list, delete → cascades to Qdrant; dedup via content hash)
 - [ ] MCP tools (`list_documents`, `list_tags`, `search`, `search_by_tag`, `search_by_document`) + tool-design rationale
 
 ### Frontend

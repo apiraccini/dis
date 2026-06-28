@@ -17,6 +17,7 @@ async def get_session() -> AsyncGenerator[AsyncSession, None]:
 async def init_db() -> None:
     # No Alembic: tables auto-created from SQLModel.metadata on startup.
     # Import model modules here so they register before create_all runs.
-    # from src import models  # uncomment when models exist
+    from src import models  # noqa: F401  (registers Document on metadata)
+
     async with engine.begin() as conn:
         await conn.run_sync(SQLModel.metadata.create_all)
