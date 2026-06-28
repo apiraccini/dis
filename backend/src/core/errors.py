@@ -6,4 +6,12 @@ class DocumentNotFoundError(Exception):
     """Raised when a document required for an operation does not exist."""
 
 
-__all__ = ['DocumentNotFoundError', 'DuplicateDocumentError']
+class ParseError(Exception):
+    """Raised when a document cannot be parsed into text."""
+
+
+class EmbeddingError(Exception):
+    """Raised when the embedding provider fails to embed text."""
+
+
+__all__ = ['DocumentNotFoundError', 'DuplicateDocumentError', 'EmbeddingError', 'ParseError']

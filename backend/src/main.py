@@ -8,11 +8,17 @@ from fastmcp.utilities.lifespan import combine_lifespans
 from src.core.config import settings
 from src.db import init_db
 from src.mcp_server import mcp_app
+from src.services.factory import build_adapters
 
 
 @asynccontextmanager
-async def db_lifespan(_app: FastAPI) -> AsyncIterator[None]:
+async def db_lifespan(app: FastAPI) -> AsyncIterator[None]:
     await init_db()
+    # Build the singleton ingestion adapters and provision the Qdrant
+    # collection (idempotent) so filtered HNSW + payload indexes are ready.
+    adapters = build_adapters(settings)
+    await adapters.vectors.provision(settings.embedding_dimensions)
+    app.state.adapters = adapters
     yield
 
 

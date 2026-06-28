@@ -5,7 +5,7 @@ import uuid
 from datetime import UTC, datetime
 
 from sqlalchemy import Index
-from sqlalchemy.dialects.postgresql import ARRAY
+from sqlalchemy.dialects.postgresql import ARRAY, TIMESTAMP
 from sqlmodel import Column, Field, SQLModel, String
 
 __all__ = ['Document', 'DocumentStatus', 'normalize_tags']
@@ -56,5 +56,11 @@ class Document(SQLModel, table=True):
     status: DocumentStatus = Field(default=DocumentStatus.pending)
     error_message: str | None = None
     chunk_count: int = Field(default=0)
-    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
-    updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(UTC),
+        sa_column=Column(TIMESTAMP(timezone=True), nullable=False),
+    )
+    updated_at: datetime = Field(
+        default_factory=lambda: datetime.now(UTC),
+        sa_column=Column(TIMESTAMP(timezone=True), nullable=False),
+    )

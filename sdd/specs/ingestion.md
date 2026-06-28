@@ -8,3 +8,15 @@
 - **Requirement: Failure handling** — Any exception during `finalize` SHALL set status `failed` with the error message and SHALL NOT upsert partial vectors (upsert is atomic per document).
   - Scenario: embedder fails — GIVEN a document in `processing`, WHEN the embedder raises during `finalize`, THEN the document's status becomes `failed`, its error_message is set, and no vectors are upserted.
 - **Requirement: Chunk count** — The service SHALL set `chunk_count` to the number of chunks produced, after a successful upsert.
+- **Requirement: Parser output** — The parser SHALL accept raw upload bytes plus a filename and SHALL return the document's text as Markdown (headings, tables, lists, links preserved), not raw plain text.
+  - Scenario: PDF upload — GIVEN a born-digital PDF upload, WHEN the parser runs, THEN the returned text contains reconstructed Markdown headings and tables rather than a flat text dump.
+  - Scenario: unsupported format — GIVEN bytes whose filename extension is not parseable, WHEN the parser runs, THEN it raises a domain parse error rather than returning empty text.
+- **Requirement: Parser blocking isolation** — The parser SHALL be synchronous at the library boundary and SHALL be invoked from the async service through an off-thread executor, so parsing never blocks the event loop.
+- **Requirement: Chunker token budget** — The chunker SHALL split parsed text into chunks of at most a configurable maximum token count using a token counter, with no overlap by default.
+  - Scenario: long document — GIVEN parsed text exceeding the token budget, WHEN the chunker runs, THEN it returns multiple chunks each within the budget.
+  - Scenario: empty input — GIVEN empty or whitespace-only parsed text, WHEN the chunker runs, THEN it returns an empty list.
+- **Requirement: Embedder dimension** — The embedder SHALL expose the configured vector dimension and SHALL produce one vector per input text of that dimension.
+- **Requirement: Asymmetric embedding** — The embedder SHALL mark index-time inputs with a document retrieval hint and query-time inputs with a query retrieval hint, where the provider supports it.
+- **Requirement: Embedding batching** — The embedder SHALL batch input texts up to a configurable batch size and SHALL concatenate the results in input order, so callers may pass any number of texts.
+  - Scenario: batch boundary — GIVEN 70 texts and a batch size of 64, WHEN embed runs, THEN two provider calls occur (64 then 6) and 70 vectors return in original order.
+- **Requirement: Embedder error surfacing** — The embedder SHALL raise a domain embedding error (wrapping provider errors) so the ingestion failure path records a stable message.

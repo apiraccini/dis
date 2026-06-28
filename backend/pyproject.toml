@@ -11,8 +11,9 @@ dependencies = [
     "qdrant-client",
     "fastmcp",
     "openai",
-    "liteparse",
+    "markitdown[pdf,docx,pptx,xlsx]",
     "semchunk",
+    "tiktoken",
     "python-multipart",
 ]
 
