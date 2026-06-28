@@ -6,9 +6,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastmcp.utilities.lifespan import combine_lifespans
 
 from src.core.config import settings
-from src.db import init_db
+from src.db import async_session, init_db
+from src.endpoints import documents, tags
 from src.mcp_server import mcp_app
+from src.repositories.document_repo import SqlModelDocumentRepository
 from src.services.factory import build_adapters
+from src.services.ingestion import cleanup_zombies
 
 
 @asynccontextmanager
@@ -19,6 +22,13 @@ async def db_lifespan(app: FastAPI) -> AsyncIterator[None]:
     adapters = build_adapters(settings)
     await adapters.vectors.provision(settings.embedding_dimensions)
     app.state.adapters = adapters
+
+    # Clean up zombie documents left in processing state by a prior crash.
+    async with async_session() as session:
+        repo = SqlModelDocumentRepository(session)
+        await cleanup_zombies(repo)
+        await session.commit()
+
     yield
 
 
@@ -44,7 +54,7 @@ async def health() -> dict[str, str]:
     return {'status': 'ok'}
 
 
-# REST routers will be included here as endpoints are built:
-# from src.endpoints import documents
-# app.include_router(documents.router, prefix="/api")
+app.include_router(documents.router)
+app.include_router(tags.router)
+
 app.mount('/mcp', mcp_app)

@@ -81,6 +81,17 @@ class InMemoryDocumentRepository:
             raise DocumentNotFoundError(f'no document with id {document_id}')
         del self._store[document_id]
 
+    async def list_by_status(
+        self,
+        status: DocumentStatus,
+        offset: int = 0,
+        limit: int = 1000,
+    ) -> tuple[list[Document], int]:
+        matching = [doc for doc in self._store.values() if doc.status == status]
+        total = len(matching)
+        page = matching[offset : offset + limit]
+        return [copy.deepcopy(d) for d in page], total
+
 
 class InMemoryVectorStore:
     """Dict-backed async vector store (canonical test double).
@@ -107,6 +118,9 @@ class InMemoryVectorStore:
 
     async def delete_by_document(self, document_id: UUID) -> None:
         self._vectors.pop(document_id, None)
+
+    async def provision(self, dim: int) -> None:
+        pass  # In-memory store doesn't need provisioning
 
     async def search(
         self,

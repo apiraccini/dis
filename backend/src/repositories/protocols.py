@@ -54,6 +54,13 @@ class DocumentRepository(Protocol):
 
     async def delete(self, document_id: UUID) -> None: ...
 
+    async def list_by_status(
+        self,
+        status: DocumentStatus,
+        offset: int = 0,
+        limit: int = 1000,
+    ) -> tuple[list[Document], int]: ...
+
 
 @dataclass(frozen=True)
 class ChunkRecord:
@@ -105,3 +112,5 @@ class VectorStore(Protocol):
         tags: list[str] | None = None,
         document_ids: list[UUID] | None = None,
     ) -> list[SearchHit]: ...
+
+    async def provision(self, dim: int) -> None: ...

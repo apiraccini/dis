@@ -1,5 +1,3 @@
-### ADDED
-
 - **Requirement: Repository protocol** — A document repository SHALL expose an async Protocol with operations: create, get-by-id, get-by-hash, list (offset/limit with optional tag filter), update-status, update-chunk-count, delete.
 - **Requirement: Domain exceptions** — Repositories SHALL raise a duplicate-document error on content-hash conflict and a not-found error when a requested document does not exist, rather than leaking data-layer exceptions.
 - **Requirement: Swappable implementations** — Two async implementations SHALL exist behind the protocol: a SQLModel implementation backed by an async session, and an in-memory implementation backed by a dictionary.

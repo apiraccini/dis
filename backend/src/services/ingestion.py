@@ -1,13 +1,17 @@
 from __future__ import annotations
 
+import contextlib
 import hashlib
+import logging
 from uuid import UUID
 
 from src.models.document import Document, DocumentStatus, normalize_tags
 from src.repositories.protocols import ChunkRecord, DocumentRepository, VectorStore
 from src.services.protocols import Chunker, Embedder, Parser
 
-__all__ = ['IngestionService']
+logger = logging.getLogger(__name__)
+
+__all__ = ['IngestionService', 'cleanup_zombies']
 
 
 class IngestionService:
@@ -74,8 +78,46 @@ class IngestionService:
         await self._documents.update_chunk_count(document_id, len(chunks))
         return await self._documents.update_status(document_id, DocumentStatus.ready)
 
+    async def finalize_background_safe(self, document_id: UUID) -> None:
+        """Run finalize in a background-task-safe way.
+
+        Never propagates exceptions — catches and sets failed status instead.
+        Preserves the original error message from finalize if available.
+        """
+        try:
+            await self.finalize(document_id)
+        except Exception as exc:
+            # finalize sets failed status + error_message before raising, but
+            # if it failed outside the try block (e.g. update_chunk_count), we
+            # ensure failed status here.
+            with contextlib.suppress(Exception):
+                await self._documents.update_status(
+                    document_id,
+                    DocumentStatus.failed,
+                    error_message=str(exc),
+                )
+
+    async def delete_document(self, document_id: UUID) -> None:
+        await self._documents.delete(document_id)
+        await self._vectors.delete_by_document(document_id)
+
     async def ingest(self, *, content: bytes, filename: str, tags: list[str]) -> Document:
         prepared = await self.prepare(content=content, filename=filename, tags=tags)
         if prepared.status == DocumentStatus.ready:
             return prepared
         return await self.finalize(prepared.id)
+
+
+async def cleanup_zombies(documents: DocumentRepository) -> None:
+    """Mark any documents stuck in 'processing' as 'failed'.
+
+    Called on application startup to clean up documents that were being
+    processed when the server was killed.
+    """
+    rows, total = await documents.list_by_status(DocumentStatus.processing, limit=5000)
+    if total == 0:
+        return
+    logger.warning('Cleaning up %d zombie documents (status=processing)', total)
+    for doc in rows:
+        msg = 'Application restart while processing'
+        await documents.update_status(doc.id, DocumentStatus.failed, error_message=msg)

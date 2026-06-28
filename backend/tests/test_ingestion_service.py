@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+from uuid import uuid4
 
 import pytest
 
@@ -199,3 +200,90 @@ async def test_ingest_dedup_skips_finalize() -> None:
     # Chunker called only once (first ingest); second was a dedup hit in prepare.
     assert len(ch.calls) == 1
     assert len(emb.calls) == 1
+
+
+async def test_delete_document_removes_from_both_repo_and_vector_store() -> None:
+    service, _, _, _, docs, vectors = _make_service(embedder=FakeEmbedder(dimension=4))
+
+    prepared = await service.ingest(content=b'one', filename='doc.txt', tags=['compliance'])
+    assert await docs.get_by_id(prepared.id) is not None
+    assert await vectors.search(query=[1.0, 0.0, 0.0, 0.0], top_k=10) != []
+
+    await service.delete_document(prepared.id)
+
+    assert await docs.get_by_id(prepared.id) is None
+    assert await vectors.search(query=[1.0, 0.0, 0.0, 0.0], top_k=10) == []
+
+
+async def test_delete_document_raises_on_missing_document() -> None:
+    from src.core.errors import DocumentNotFoundError
+
+    service, _, _, _, _, _ = _make_service(embedder=FakeEmbedder(dimension=4))
+
+    with pytest.raises(DocumentNotFoundError):
+        await service.delete_document(uuid4())
+
+
+async def test_finalize_from_background_task_catches_exception_and_sets_failed() -> None:
+    """When finalize is called from a background task (no supervisor), exceptions
+    must be caught so they don't crash the server, and the doc status must be set to failed."""
+    from tests._failing_embedder import FailingEmbedder
+
+    failing = FailingEmbedder(dimension=4, exc=RuntimeError('embedder exploded'))
+    service, _, _, _, docs, vectors = _make_service(embedder=failing)
+    prepared = await service.prepare(content=b'data', filename='doc.txt', tags=[])
+    assert prepared.status == DocumentStatus.processing
+
+    # No exception should escape — it's a background task call
+    await service.finalize_background_safe(prepared.id)
+
+    failed = await docs.get_by_id(prepared.id)
+    assert failed is not None
+    assert failed.status == DocumentStatus.failed
+    assert 'embedder exploded' in (failed.error_message or '')
+    # No vectors were upserted
+    assert await vectors.search(query=[1.0, 0.0, 0.0, 0.0], top_k=10) == []
+
+
+async def test_cleanup_zombies_marks_processing_docs_as_failed() -> None:
+    docs = InMemoryDocumentRepository()
+    from src.services.ingestion import cleanup_zombies
+
+    ready_doc = Document(
+        id=uuid4(),
+        filename='ready.pdf',
+        content_hash=_hash('ready'),
+        parsed_text='ready',
+        status=DocumentStatus.ready,
+    )
+    processing_doc = Document(
+        id=uuid4(),
+        filename='processing.pdf',
+        content_hash=_hash('processing'),
+        parsed_text='processing',
+        status=DocumentStatus.processing,
+    )
+    failed_doc = Document(
+        id=uuid4(),
+        filename='failed.pdf',
+        content_hash=_hash('failed'),
+        parsed_text='failed',
+        status=DocumentStatus.failed,
+    )
+    for d in [ready_doc, processing_doc, failed_doc]:
+        await docs.create(d)
+
+    await cleanup_zombies(docs)
+
+    ready_fetched = await docs.get_by_id(ready_doc.id)
+    assert ready_fetched is not None
+    assert ready_fetched.status == DocumentStatus.ready
+
+    failed_fetched = await docs.get_by_id(failed_doc.id)
+    assert failed_fetched is not None
+    assert failed_fetched.status == DocumentStatus.failed
+
+    cleaned = await docs.get_by_id(processing_doc.id)
+    assert cleaned is not None
+    assert cleaned.status == DocumentStatus.failed
+    assert cleaned.error_message == 'Application restart while processing'

@@ -6,14 +6,23 @@ __all__ = ['FakeChunker', 'FakeEmbedder', 'FakeParser']
 
 
 class FakeParser:
-    """Returns a fixed parsed string regardless of input."""
+    """Returns a fixed parsed string. Raises ParseError for certain extensions."""
+
+    _UNSUPPORTED: frozenset[str] = frozenset({'.py', '.exe', '.dll'})
 
     def __init__(self, text: str = 'parsed content') -> None:
         self._text = text
         self.calls: list[tuple[bytes, str]] = []
 
     async def parse(self, content: bytes, filename: str) -> str:
+        import os
+
+        from src.core.errors import ParseError
+
         self.calls.append((content, filename))
+        ext = os.path.splitext(filename)[1].lower()
+        if ext in self._UNSUPPORTED:
+            raise ParseError(f'failed to parse {filename!r}: unsupported extension {ext!r}')
         return self._text
 
 

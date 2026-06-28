@@ -98,3 +98,16 @@ class SqlModelDocumentRepository:
             raise DocumentNotFoundError(f'no document with id {document_id}')
         await self._session.delete(doc)
         await self._session.commit()
+
+    async def list_by_status(
+        self,
+        status: DocumentStatus,
+        offset: int = 0,
+        limit: int = 1000,
+    ) -> tuple[list[Document], int]:
+        stmt = select(Document).where(Document.status == status)
+        total_result = await self._session.exec(select(func.count()).select_from(stmt.subquery()))
+        total = total_result.one()
+        page_result = await self._session.exec(stmt.offset(offset).limit(limit))
+        rows = list(page_result.all())
+        return rows, total

@@ -7,6 +7,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from src.core.config import Settings
 from src.repositories.document_repo import SqlModelDocumentRepository
+from src.repositories.protocols import VectorStore
 from src.services.adapters.markitdown_parser import MarkItDownParser
 from src.services.adapters.openrouter_embedder import OpenRouterEmbedder
 from src.services.adapters.qdrant_vector_store import QdrantVectorStore
@@ -28,7 +29,7 @@ class Adapters:
     parser: Parser
     chunker: Chunker
     embedder: Embedder
-    vectors: QdrantVectorStore  # concrete: lifespan calls `.provision(dim)`
+    vectors: VectorStore  # concrete: lifespan calls `.provision(dim)`
 
 
 def build_adapters(settings: Settings) -> Adapters:

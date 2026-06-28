@@ -4,6 +4,10 @@
   - Scenario: different bytes, same parsed text — GIVEN two uploads with different bytes that parse to the same text, WHEN both are ingested, THEN the second is treated as a duplicate.
 - **Requirement: Two-phase entry** — Ingestion SHALL expose `prepare` (parse → hash → dedup → create as processing) and `finalize` (chunk → embed → upsert → set status); a full `ingest` SHALL compose both.
   - Scenario: async upload — GIVEN an upload, WHEN `prepare` runs, THEN a Document exists with status `processing` and parsed text persisted, and `finalize` may run later using only the document id.
+- **Requirement: Background finalize** — When `finalize` is called from a background task, any exception SHALL be caught and the document status set to `failed`; the exception SHALL NOT propagate to the caller.
+  - Scenario: background-task failure — GIVEN a document in `processing` status, WHEN `finalize` raises inside a background task, THEN the exception is caught, the document status becomes `failed` with the error message, and no unhandled exception escapes to crash the server.
+- **Requirement: Delete-document** — `IngestionService` SHALL expose a `delete_document(document_id)` method that removes the document from both the relational store and the vector store, coordinating the cascade at the service layer.
+- **Requirement: Startup zombie cleanup** — On application startup, all documents with `status = processing` SHALL be set to `failed` with error message "Application restart while processing".
 - **Requirement: Lifecycle ownership** — The service SHALL set status `processing` on creation, status `ready` with `chunk_count` on success, and status `failed` with `error_message` on error.
 - **Requirement: Failure handling** — Any exception during `finalize` SHALL set status `failed` with the error message and SHALL NOT upsert partial vectors (upsert is atomic per document).
   - Scenario: embedder fails — GIVEN a document in `processing`, WHEN the embedder raises during `finalize`, THEN the document's status becomes `failed`, its error_message is set, and no vectors are upserted.
