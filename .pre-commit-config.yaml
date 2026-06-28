@@ -1,0 +1,40 @@
+repos:
+  # Python: ruff (lint + format)
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.20
+    hooks:
+      - id: ruff-check
+        args: [--fix]
+      - id: ruff-format
+
+  # Python: ty (type checking via local uv)
+  - repo: local
+    hooks:
+      - id: ty
+        name: ty
+        entry: bash -c 'cd backend && uv run ty check'
+        language: system
+        types: [python]
+        pass_filenames: false
+
+  # General: base hooks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-json
+        exclude: 'tsconfig.*\.json'  # tsconfig files are jsonc with comments
+      - id: check-added-large-files
+
+  # Frontend: Biome (lint + format) — local hook so config discovery works from frontend/
+  - repo: local
+    hooks:
+      - id: biome-check
+        name: biome check
+        entry: bash -c 'cd frontend && bun biome check --write src/'
+        language: system
+        types: [text]
+        files: ^frontend/src/
+        pass_filenames: false

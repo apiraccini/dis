@@ -1,0 +1,55 @@
+[project]
+name = "dis-backend"
+version = "0.1.0"
+description = "Document Intelligence Server — REST API, ingestion pipeline, and MCP server."
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi[standard]",
+    "sqlmodel",
+    "pydantic-settings",
+    "asyncpg",
+    "qdrant-client",
+    "fastmcp",
+    "openai",
+    "liteparse",
+    "semchunk",
+    "python-multipart",
+]
+
+[dependency-groups]
+dev = [
+    "pytest",
+    "pytest-asyncio",
+    "ruff",
+    "ty",
+    "httpx",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP", "B", "SIM", "ARG", "C4", "PT", "RUF"]
+ignore = []
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S101", "ARG"]
+
+[tool.ruff.format]
+quote-style = "single"
+indent-style = "space"
+line-ending = "auto"
+
+[tool.ty]

@@ -1,0 +1,54 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Set up Python
+        run: uv python install
+
+      - name: Install backend deps
+        run: uv sync --dev
+        working-directory: backend
+
+      - name: Lint backend
+        run: uv run ruff check src/ tests/
+        working-directory: backend
+
+      - name: Format check backend
+        run: uv run ruff format --check src/ tests/
+        working-directory: backend
+
+      - name: Type check backend
+        run: uv run ty check
+        working-directory: backend
+
+      - name: Test backend
+        run: uv run pytest
+        working-directory: backend
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install frontend deps
+        run: bun install
+        working-directory: frontend
+
+      - name: Lint frontend
+        run: bun run lint
+        working-directory: frontend
+
+      - name: Test frontend
+        run: bun run test
+        working-directory: frontend
