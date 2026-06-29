@@ -9,6 +9,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from src.core.errors import DocumentNotFoundError, DuplicateDocumentError
 from src.models.document import Document, DocumentStatus, normalize_tags
+from src.repositories.protocols import clamp_pagination
 
 __all__ = ['SqlModelDocumentRepository']
 
@@ -48,6 +49,7 @@ class SqlModelDocumentRepository:
         limit: int = 100,
         tag: str | None = None,
     ) -> tuple[list[Document], int]:
+        offset, limit = clamp_pagination(offset, limit)
         tag_norm = tag.strip().lower() if tag else None
         stmt = select(Document)
         if tag_norm is not None:
@@ -105,6 +107,7 @@ class SqlModelDocumentRepository:
         offset: int = 0,
         limit: int = 1000,
     ) -> tuple[list[Document], int]:
+        offset, limit = clamp_pagination(offset, limit)
         stmt = select(Document).where(Document.status == status)
         total_result = await self._session.exec(select(func.count()).select_from(stmt.subquery()))
         total = total_result.one()
@@ -113,8 +116,8 @@ class SqlModelDocumentRepository:
         return rows, total
 
     async def list_all_tags(self) -> list[str]:
-        rows, _ = await self.list_documents(limit=10_000)
-        seen: set[str] = set()
-        for doc in rows:
-            seen.update(doc.tags)
-        return sorted(seen)
+        tags_col = Document.__table__.c.tags  # ty: ignore[unresolved-attribute]
+        tag = func.unnest(tags_col).label('tag')
+        stmt = select(tag).distinct().order_by(tag)
+        result = await self._session.exec(stmt)
+        return list(result.all())

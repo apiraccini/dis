@@ -4,7 +4,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file='.env', extra='ignore')
 
-    # Postgres (raw document metadata: documents, tags, chunks)
+    # Postgres (document metadata + parsed text; chunks live in Qdrant, not here)
     postgres_host: str = 'db'
     postgres_port: int = 5432
     postgres_user: str = 'dis'
@@ -31,8 +31,8 @@ class Settings(BaseSettings):
     chunk_size_tokens: int = 1024
     chunk_overlap_tokens: int = 0
 
-    # Retrieval defaults.
-    search_default_top_k: int = 5
+    # When true, ingestion uses a deterministic in-process fake embedder (e2e only).
+    use_fake_embedder: bool = False
 
     # MCP server auth (Bearer token on the /mcp endpoint)
     mcp_api_key: str = 'dev-mcp-key-change-me'

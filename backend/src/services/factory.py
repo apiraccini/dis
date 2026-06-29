@@ -8,6 +8,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from src.core.config import Settings
 from src.repositories.document_repo import SqlModelDocumentRepository
 from src.repositories.protocols import VectorStore
+from src.services.adapters.fake_embedder import FakeEmbedder
 from src.services.adapters.markitdown_parser import MarkItDownParser
 from src.services.adapters.openrouter_embedder import OpenRouterEmbedder
 from src.services.adapters.qdrant_vector_store import QdrantVectorStore
@@ -20,8 +21,10 @@ __all__ = ['Adapters', 'build_adapters', 'build_ingestion_service']
 
 @dataclass(frozen=True)
 class Adapters:
-    """Startup-constructed singletons for the ingestion pipeline.
+    """Startup-constructed singletons for ingestion and search.
 
+    Covers both index-time ingestion (parser, chunker, embedder, vectors) and
+    query-time search (`query_embedder`, configured with the query input_type).
     The document repository is intentionally NOT here — it is request-scoped
     (needs an AsyncSession); see `build_ingestion_service`.
     """
@@ -42,22 +45,26 @@ def build_adapters(settings: Settings) -> Adapters:
         chunk_size=settings.chunk_size_tokens,
         overlap=settings.chunk_overlap_tokens,
     )
-    embedder = OpenRouterEmbedder(
-        model=settings.embedding_model,
-        dimensions=settings.embedding_dimensions,
-        batch_size=settings.embedding_batch_size,
-        input_type=settings.embedding_input_type_document,
-        base_url=settings.embedding_base_url,
-        api_key=settings.openrouter_api_key,
-    )
-    query_embedder = OpenRouterEmbedder(
-        model=settings.embedding_model,
-        dimensions=settings.embedding_dimensions,
-        batch_size=settings.embedding_batch_size,
-        input_type=settings.embedding_input_type_query,
-        base_url=settings.embedding_base_url,
-        api_key=settings.openrouter_api_key,
-    )
+    if settings.use_fake_embedder:
+        embedder: Embedder = FakeEmbedder(dimensions=settings.embedding_dimensions)
+        query_embedder: Embedder = embedder
+    else:
+        embedder = OpenRouterEmbedder(
+            model=settings.embedding_model,
+            dimensions=settings.embedding_dimensions,
+            batch_size=settings.embedding_batch_size,
+            input_type=settings.embedding_input_type_document,
+            base_url=settings.embedding_base_url,
+            api_key=settings.openrouter_api_key,
+        )
+        query_embedder = OpenRouterEmbedder(
+            model=settings.embedding_model,
+            dimensions=settings.embedding_dimensions,
+            batch_size=settings.embedding_batch_size,
+            input_type=settings.embedding_input_type_query,
+            base_url=settings.embedding_base_url,
+            api_key=settings.openrouter_api_key,
+        )
     return Adapters(
         parser=parser,
         chunker=chunker,

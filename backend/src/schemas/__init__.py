@@ -7,6 +7,13 @@ from pydantic import BaseModel, ConfigDict
 
 from src.models.document import DocumentStatus
 
+__all__ = [
+    'DocumentDetailResponse',
+    'DocumentListResponse',
+    'DocumentResponse',
+    'TagsResponse',
+]
+
 
 class DocumentResponse(BaseModel):
     """Document fields returned in list responses (omits parsed_text)."""

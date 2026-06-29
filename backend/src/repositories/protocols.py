@@ -8,11 +8,22 @@ from src.core.errors import DocumentNotFoundError, DuplicateDocumentError  # noq
 from src.models.document import Document, DocumentStatus
 
 __all__ = [
+    'MAX_PAGE_SIZE',
     'ChunkPayload',
     'DocumentRepository',
     'SearchHit',
     'VectorStore',
+    'clamp_pagination',
 ]
+
+# Hard cap on page size, enforced at the repository boundary so every caller
+# (REST endpoint and MCP tool alike) gets the same contract.
+MAX_PAGE_SIZE = 500
+
+
+def clamp_pagination(offset: int, limit: int) -> tuple[int, int]:
+    """Clamp pagination args to safe bounds: offset >= 0, 0 <= limit <= MAX_PAGE_SIZE."""
+    return max(offset, 0), max(0, min(limit, MAX_PAGE_SIZE))
 
 
 @runtime_checkable
@@ -24,6 +35,7 @@ class DocumentRepository(Protocol):
     - `update_*` / `delete` raise `DocumentNotFoundError` if the id is absent.
     - `get_*` return `None` (not an exception) when nothing matches.
     - `list_documents` returns `(rows, total)` where `total` is the count before pagination.
+      `offset`/`limit` are clamped to safe bounds (see `clamp_pagination`).
     """
 
     async def create(self, document: Document) -> Document: ...
