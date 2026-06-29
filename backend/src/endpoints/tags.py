@@ -11,10 +11,10 @@ from src.services.tags import list_tags as list_tags_service
 
 router = APIRouter(prefix='/api', tags=['tags'])
 
-DocumentRepoDep = Annotated[DocumentRepository | None, Depends(get_document_repository)]
+DocumentRepoDep = Annotated[DocumentRepository, Depends(get_document_repository)]
 
 
 @router.get('/tags', response_model=TagsResponse)
-async def list_tags(docs: DocumentRepoDep = None) -> TagsResponse:
+async def list_tags(docs: DocumentRepoDep) -> TagsResponse:
     """Return all unique, sorted tags across all documents."""
-    return TagsResponse(tags=await list_tags_service(docs))  # ty: ignore[invalid-argument-type]
+    return TagsResponse(tags=await list_tags_service(docs))

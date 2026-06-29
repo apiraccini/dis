@@ -12,7 +12,6 @@ __all__ = ['Document', 'DocumentStatus', 'normalize_tags']
 
 
 class DocumentStatus(enum.StrEnum):
-    pending = 'pending'
     processing = 'processing'
     ready = 'ready'
     failed = 'failed'
@@ -46,14 +45,14 @@ class Document(SQLModel, table=True):
     filename: str
     content_type: str | None = None
     size_bytes: int = 0
-    # SHA-256 hex of the parsed text — the dedup key. Unique constraint enforced at the DB.
+    # SHA-256 hex of the raw upload bytes — the dedup key. Unique constraint enforced at the DB.
     content_hash: str = Field(unique=True)
     parsed_text: str
     tags: list[str] = Field(
         default_factory=list,
         sa_column=Column(ARRAY(String), nullable=False, server_default='{}'),
     )
-    status: DocumentStatus = Field(default=DocumentStatus.pending)
+    status: DocumentStatus = Field(default=DocumentStatus.processing)
     error_message: str | None = None
     chunk_count: int = Field(default=0)
     created_at: datetime = Field(
@@ -62,5 +61,9 @@ class Document(SQLModel, table=True):
     )
     updated_at: datetime = Field(
         default_factory=lambda: datetime.now(UTC),
-        sa_column=Column(TIMESTAMP(timezone=True), nullable=False),
+        sa_column=Column(
+            TIMESTAMP(timezone=True),
+            nullable=False,
+            onupdate=lambda: datetime.now(UTC),
+        ),
     )

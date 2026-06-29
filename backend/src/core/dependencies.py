@@ -4,7 +4,7 @@ from collections.abc import AsyncGenerator, AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Annotated
 
-from fastapi import Depends, Request
+from fastapi import Depends
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from src.db import async_session, get_session
@@ -31,13 +31,9 @@ def get_adapters() -> Adapters:
     return _adapters
 
 
-async def get_app_adapters(request: Request) -> Adapters:
-    return request.app.state.adapters
-
-
 async def get_ingestion_service(
     session: Annotated[AsyncSession, Depends(get_db)],
-    adapters: Annotated[Adapters, Depends(get_app_adapters)],
+    adapters: Annotated[Adapters, Depends(get_adapters)],
 ) -> AsyncGenerator[IngestionService, None]:
     yield build_ingestion_service(session, adapters)
 
@@ -56,7 +52,6 @@ async def get_document_repo() -> AsyncIterator[DocumentRepository]:
 
 __all__ = [
     'get_adapters',
-    'get_app_adapters',
     'get_db',
     'get_document_repo',
     'get_document_repository',

@@ -16,14 +16,14 @@ from src.services.ingestion import cleanup_zombies
 
 
 @asynccontextmanager
-async def db_lifespan(app: FastAPI) -> AsyncIterator[None]:
+async def db_lifespan(_app: FastAPI) -> AsyncIterator[None]:
     await init_db()
     # Build the singleton ingestion adapters and provision the Qdrant
     # collection (idempotent) so filtered HNSW + payload indexes are ready.
     adapters = build_adapters(settings)
-    await adapters.vectors.provision(settings.embedding_dimensions)
-    app.state.adapters = adapters
-    set_adapters(adapters)  # shared singleton for MCP tools (no Request access)
+    # Provision to the embedder's actual output width, not config, so they can't diverge.
+    await adapters.vectors.provision(adapters.embedder.dimension)
+    set_adapters(adapters)  # shared singleton for REST + MCP tools
 
     # Clean up zombie documents left in processing state by a prior crash.
     async with async_session() as session:

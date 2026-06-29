@@ -111,7 +111,10 @@ class QdrantVectorStore:
     ) -> list[SearchHit]:
         must: list[qm.Condition] = []
         if tags:
-            must.append(qm.FieldCondition(key=F_TAGS, match=qm.MatchAny(any=list(tags))))
+            # Stored tags are always normalized (lowercased, trimmed); normalize the
+            # query side too so matching mirrors InMemoryVectorStore (contract fidelity).
+            norm_tags = [t.strip().lower() for t in tags]
+            must.append(qm.FieldCondition(key=F_TAGS, match=qm.MatchAny(any=norm_tags)))
         if document_ids:
             must.append(
                 qm.FieldCondition(

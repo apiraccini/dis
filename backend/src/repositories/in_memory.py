@@ -2,12 +2,12 @@ from __future__ import annotations
 
 import copy
 import math
-import uuid
+from datetime import UTC, datetime
 from uuid import UUID
 
 from src.core.errors import DocumentNotFoundError, DuplicateDocumentError
 from src.models.document import Document, DocumentStatus, normalize_tags
-from src.repositories.protocols import ChunkPayload, SearchHit
+from src.repositories.protocols import ChunkPayload, SearchHit, clamp_pagination
 
 __all__ = ['InMemoryDocumentRepository', 'InMemoryVectorStore']
 
@@ -19,10 +19,8 @@ class InMemoryDocumentRepository:
         self._store: dict[UUID, Document] = {}
 
     async def create(self, document: Document) -> Document:
-        # Normalize tags before persisting.
+        # Normalize tags before persisting. `id` always has a uuid default on the model.
         document.tags = normalize_tags(document.tags)
-        if document.id is None:
-            document.id = uuid.uuid4()
         if any(d.content_hash == document.content_hash for d in self._store.values()):
             raise DuplicateDocumentError(
                 f'document with content_hash {document.content_hash!r} already exists'
@@ -46,6 +44,7 @@ class InMemoryDocumentRepository:
         limit: int = 100,
         tag: str | None = None,
     ) -> tuple[list[Document], int]:
+        offset, limit = clamp_pagination(offset, limit)
         tag_norm = tag.strip().lower() if tag else None
         matching = [doc for doc in self._store.values() if tag_norm is None or tag_norm in doc.tags]
         total = len(matching)
@@ -63,6 +62,7 @@ class InMemoryDocumentRepository:
             raise DocumentNotFoundError(f'no document with id {document_id}')
         doc.status = status
         doc.error_message = error_message
+        doc.updated_at = datetime.now(UTC)
         return copy.deepcopy(doc)
 
     async def update_chunk_count(
@@ -74,6 +74,7 @@ class InMemoryDocumentRepository:
         if doc is None:
             raise DocumentNotFoundError(f'no document with id {document_id}')
         doc.chunk_count = chunk_count
+        doc.updated_at = datetime.now(UTC)
         return copy.deepcopy(doc)
 
     async def delete(self, document_id: UUID) -> None:
@@ -87,6 +88,7 @@ class InMemoryDocumentRepository:
         offset: int = 0,
         limit: int = 1000,
     ) -> tuple[list[Document], int]:
+        offset, limit = clamp_pagination(offset, limit)
         matching = [doc for doc in self._store.values() if doc.status == status]
         total = len(matching)
         page = matching[offset : offset + limit]

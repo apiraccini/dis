@@ -4,6 +4,7 @@ from uuid import UUID
 
 from fastmcp import FastMCP
 from fastmcp.dependencies import Depends
+from fastmcp.exceptions import ToolError
 from pydantic import BaseModel
 
 from src.core.dependencies import get_adapters, get_document_repo
@@ -11,6 +12,9 @@ from src.core.security import build_mcp_auth
 from src.repositories.protocols import DocumentRepository, SearchHit
 from src.services.factory import Adapters
 from src.services.tags import list_tags as list_tags_service
+
+# Hard cap on search top_k, mirroring MAX_PAGE_SIZE in the repository layer.
+MAX_TOP_K = 50
 
 mcp = FastMCP('DIS Knowledge Base', auth=build_mcp_auth())
 
@@ -69,7 +73,8 @@ async def list_documents(
     repo: DocumentRepository = Depends(get_document_repo),  # noqa: B008
 ) -> ListDocumentsResult:
     """List documents with pagination and optional tag filter."""
-    rows, total = await repo.list_documents(offset=offset, limit=min(limit, 500), tag=tag)
+    # offset/limit clamping (incl. the 500 cap) is enforced at the repository boundary.
+    rows, total = await repo.list_documents(offset=offset, limit=limit, tag=tag)
     return ListDocumentsResult(
         documents=[
             DocumentSummary(
@@ -101,10 +106,13 @@ async def _search(
     tags: list[str] | None = None,
     document_ids: list[str] | None = None,
 ) -> SearchResult:
-    top_k = min(top_k, 50)
+    top_k = min(top_k, MAX_TOP_K)
     ids: list[UUID] | None = None
     if document_ids:
-        ids = [UUID(did) for did in document_ids]
+        try:
+            ids = [UUID(did) for did in document_ids]
+        except ValueError as exc:
+            raise ToolError(f'invalid document id: {exc}') from exc
 
     [vector] = await adapters.query_embedder.embed([query])
     hits: list[SearchHit] = await adapters.vectors.search(

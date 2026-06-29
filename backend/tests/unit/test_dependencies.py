@@ -1,27 +1,14 @@
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock, PropertyMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from src.core.dependencies import (
-    get_app_adapters,
     get_document_repository,
     get_ingestion_service,
 )
 from src.services.factory import Adapters
-
-
-@pytest.mark.asyncio
-async def test_get_app_adapters_returns_from_request_state() -> None:
-    """get_app_adapters reads adapters from request.app.state.adapters."""
-    mock_adapters = MagicMock(spec=Adapters)
-    request = MagicMock()
-    type(request.app.state).adapters = PropertyMock(return_value=mock_adapters)
-
-    result = await get_app_adapters(request)
-
-    assert result is mock_adapters
 
 
 @pytest.mark.asyncio

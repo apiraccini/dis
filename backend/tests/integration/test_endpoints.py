@@ -8,7 +8,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from src.core.dependencies import (
-    get_app_adapters,
+    get_adapters,
     get_document_repository,
     get_ingestion_service,
 )
@@ -56,7 +56,7 @@ def _override_dependencies(
     async def _get_docs() -> AsyncGenerator[DocumentRepository, None]:
         yield docs
 
-    app.dependency_overrides[get_app_adapters] = lambda: adapters
+    app.dependency_overrides[get_adapters] = lambda: adapters
     app.dependency_overrides[get_ingestion_service] = _get_service
     app.dependency_overrides[get_document_repository] = _get_docs
 
