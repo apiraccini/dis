@@ -19,7 +19,7 @@ src/
 │   ├── config.py        Settings (env vars, dev defaults)
 │   ├── dependencies.py  get_db session dependency
 │   └── security.py      build_mcp_auth() → StaticTokenVerifier
-├── models/              SQLModel tables (Document w/ parsed content + content hash, Tag, DocumentTag link — backlog; no Chunk table)
+├── models/              SQLModel tables (Document w/ parsed content + content hash + tags as a Postgres text[] column; no Tag/DocumentTag link, no Chunk table)
 ├── schemas/             Pydantic request/response schemas (backlog)
 ├── endpoints/           FastAPI routers (backlog)
 ├── services/            Business logic + ingestion orchestrator + adapters
@@ -32,16 +32,13 @@ src/
 │       ├── openrouter_embedder.py Qwen3-embedding-8b, batched, asymmetric input_type
 │       └── qdrant_vector_store.py Qdrant (cosine, payload indexes, filter pushdown)
 └── repositories/        Data access (Protocol + SQLModel + in-memory impls)
-    ├── protocols.py     DocumentRepository + VectorStore Protocols, ChunkRecord, SearchHit
+    ├── protocols.py     DocumentRepository + VectorStore Protocols, ChunkPayload, SearchHit
     ├── document_repo.py async SQLModel DocumentRepository
     └── in_memory.py     dict-backed DocumentRepository + VectorStore (test doubles)
-tests/
-├── test_health.py / test_document_model.py / test_errors.py
-├── test_in_memory_document_repo.py / test_in_memory_vector_store.py
-├── test_ingestion_service.py            (orchestration, behind fakes)
-├── test_markitdown_parser.py / test_semchunk_chunker.py
-├── test_openrouter_embedder.py / test_qdrant_vector_store.py
-└── smoke_qdrant_live.py / smoke_ingestion_e2e.py  (run against compose; not in the unit suite)
+tests/                   shared fakes at the root; tiered by the test pyramid (see sdd/specs/testing.md)
+├── unit/                pure unit tests (no external services, no real adapters)
+├── integration/         real adapters or full HTTP/MCP stack (need config/env)
+└── e2e/                 require a running compose stack (not in CI by default; scripts/run_e2e.sh)
 ```
 
 ## Development
@@ -52,7 +49,7 @@ uv run uvicorn src.main:app --reload
 
 ## Backlog
 - [x] Data models + repositories
-  - `models/document.py` (Document: parsed full text + content hash for dedup, status lifecycle, **tags as a Postgres `text[]` column** instead of a Tag/DocumentTag link — see `sdd/specs/documents.md`)
+  - `models/document.py` (Document: parsed full text + content hash for dedup [SHA-256 of raw upload bytes], status lifecycle, **tags as a Postgres `text[]` column** instead of a Tag/DocumentTag link — see `sdd/specs/documents.md`)
   - registered in `db.py` `init_db()` so `create_all` sees the table
   - `repositories/protocols.py` (`DocumentRepository` async Protocol) + `repositories/in_memory.py` (dict-backed test double) + `repositories/document_repo.py` (async SQLModel impl)
   - no Chunk table — chunk text + embeddings live in Qdrant
