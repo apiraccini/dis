@@ -2,7 +2,7 @@
 
 Backend infrastructure for a tagged-document knowledge base: a document-management web UI, an ingestion pipeline (parse → chunk → embed → store), and an **MCP server** exposing the knowledge base as agent-ready tools over Streamable HTTP.
 
-> **State: ingestion + REST API + MCP tools done.** The harness (lint, tests, Docker, CI, MCP endpoint wiring, auth) is green, the data models + repositories are in, the ingestion pipeline runs end-to-end with real adapters, the document-management REST API is operational (upload, list, get-by-id, delete, tags), and five MCP knowledge-base tools (`list_documents`, `list_tags`, `search`, `search_by_tag`, `search_by_document`) are registered and verified end-to-end via the live compose stack. The frontend UI is the remaining backlog item.
+> **State: v0.1.0 candidate — all core backend functionality + MCP tools tested.** The harness (lint, tests, Docker, CI, MCP endpoint wiring, auth) is green, the data models + repositories are in, the ingestion pipeline runs end-to-end with real adapters, the document-management REST API is operational (upload, list, get-by-id, delete, tags), and five MCP knowledge-base tools (`list_documents`, `list_tags`, `search`, `search_by_tag`, `search_by_document`) are registered and verified end-to-end via the live compose stack with all payload variants (pagination, tag/doc filters, combined filters, empty/edge cases). Example data (7 documents in 5 formats) and ingestion scripts are ready. **Frontend UI is the next task** — once done, tag v0.1.0.
 
 ## Architecture
 
@@ -26,8 +26,7 @@ flowchart TB
 
     browser -->|GET /| frontend
     browser -->|/api/*| backend
-    agent -->|/mcp (Streamable HTTP)
-    Bearer auth| backend
+    agent -->|"/mcp (Streamable HTTP) Bearer auth"| backend
     frontend -->|/api/* proxy| backend
     backend -->|SQL/asyncpg| db
     backend -->|gRPC| qdrant
@@ -46,15 +45,15 @@ sequenceDiagram
 
     U->>API: multipart (file + tags)
     API->>I: prepare(content, filename, tags)
-    I->>P: parse(content)
-    P-->>I: markdown text
-    I->>I: SHA-256(text) → content_hash
+    I->>I: SHA-256(raw bytes) → content_hash
     I->>R: get_by_hash(hash)
     alt hash exists (dedup)
         R-->>I: existing Document
         I-->>API: document (status=ready)
         API-->>U: 200 OK (existing doc)
     else new document
+        I->>P: parse(content)
+        P-->>I: markdown text
         I->>R: create(status=processing)
         R-->>I: Document
         I-->>API: Document
@@ -98,6 +97,17 @@ cd backend && uv sync --dev && uv run uvicorn src.main:app --reload   # needs db
 cd frontend && bun install && bun run dev
 ```
 
+Load example data after starting the stack:
+```bash
+bash scripts/ingest_data.sh   # POST data/final/* to the running API
+```
+
+To regenerate the PDF/DOCX variants from source markdown (the .md/.txt/.html files in `data/final/` are maintained directly, not generated):
+```bash
+bash scripts/convert_data.sh   # requires pandoc + weasyprint
+```
+```
+
 ## Connecting an MCP client
 
 Point any MCP-compatible client (Claude Desktop, MCP Inspector, a custom agent) at:
@@ -115,16 +125,35 @@ MCP clients connect to `/mcp` and the SDK handles the protocol; raw HTTP probes 
 - [x] Data models + repositories (Document [parsed content + content-hash dedup], Tag, DocumentTag many-to-many link; SQLModel tables + Protocol-based repos; no Chunk table — chunks live in Qdrant)  _(done with a revision: tags stored as a Postgres `text[]` column on Document instead of a Tag/DocumentTag link — see `sdd/specs/documents.md`)_
 - [x] Ingestion pipeline (markitdown parser, semchunk chunker, OpenRouter embedder; standalone services storing chunk text + embedding + payload in Qdrant, parsed content + metadata in Postgres)  _(done: `IngestionService` two-phase prepare/finalize + `VectorStore` Protocol; concrete adapters — `MarkItDownParser`, `SemchunkChunker`, `OpenRouterEmbedder`, `QdrantVectorStore` — implemented behind their Protocols, unit-tested, and verified end-to-end via a live compose smoke; Qdrant collection auto-provisioned on startup with cosine distance + payload indexes on `document_id`/`tags`; two pre-existing bugs fixed during integration — `db.py` session type and `Document` timestamp columns — see `sdd/specs/ingestion.md` + `vectors.md`)_
 - [x] Document management REST API (upload → triggers async ingestion, list, get-by-id, delete → cascades to Qdrant; dedup via content hash; tags endpoint)
-- [x] MCP tools (`list_documents`, `list_tags`, `search`, `search_by_tag`, `search_by_document`) — query-time embedding via `adapters.query_embedder`, FastMCP `Depends()` DI, five tools registered on the FastMCP instance; see `sdd/changes/mcp-knowledge-base-tools/`
+- [x] MCP tools (`list_documents`, `list_tags`, `search`, `search_by_tag`, `search_by_document`) — query-time embedding via `adapters.query_embedder`, FastMCP `Depends()` DI, five tools registered on the FastMCP instance; see `sdd/specs/mcp.md`
+
+### Data & Scripts
+- [x] Example documents in `data/` (7 files: md, pdf, html, docx, txt — covers all parser formats)
+- [x] `scripts/convert_data.sh` — generate PDF/DOCX from source markdown (requires pandoc + weasyprint)
+- [x] `scripts/ingest_data.sh` — POST all example docs to a running stack
 
 ### Frontend
 - [ ] Document management UI (upload + tag, list, delete)
+
+### v0.1.0
+- [ ] Tag v0.1.0 after frontend ships
+
+### v0.2.0 — ordered plan
+- [ ] **Hybrid search** (dense + sparse via Qdrant's built-in sparse vectors) — fuse at query time for better recall on keywords, codes, and acronyms
+- [ ] **Document summaries** — LLM-generated abstract per document stored in Postgres + Qdrant payload; enrich `list_documents` / `search` hits with summaries; add `summary_match` field or summary-based retrieval
+- [ ] **OCR for scanned PDFs** — extend ingestion with MarkItDown's `--use-docling` mode or direct Docling integration (plus tests with a scanned-image sample doc)
+- [ ] **Evolve MCP tools** — tools to add/modify emerge from the above (e.g. `get_full_document`, enhanced search with summaries). No `delete` tool — KB stays read-only for agents.
 
 
 ## Repo layout
 ```
 backend/    FastAPI app (REST + ingestion) + MCP server (see backend/README.md)
+data/       Example documents for testing and demos
+  raw/        Source markdown files (one per topic)
+  final/      Ready-to-ingest documents in mixed formats
+  mapping.yaml  Filename to tags mapping
 frontend/   React SPA (see frontend/README.md)
+scripts/    Dev tooling (convert_data.sh, ingest_data.sh)
 sdd/        specs and change folders
 ```
 

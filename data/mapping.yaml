@@ -1,0 +1,29 @@
+getting-started.md:
+  - hr
+  - onboarding
+
+engineering-handbook.pdf:
+  - engineering
+  - handbook
+
+incident-response.html:
+  - engineering
+  - sre
+  - playbook
+
+design-principles.docx:
+  - product
+  - design
+
+api-style-guide.txt:
+  - engineering
+  - api
+  - handbook
+
+expense-policy.pdf:
+  - hr
+  - finance
+
+data-privacy.pdf:
+  - legal
+  - compliance

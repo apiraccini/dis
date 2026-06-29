@@ -7,6 +7,14 @@
       },
       "lifecycle": "lazy",
       "directTools": true
+    },
+    "codegraph": {
+      "type": "stdio",
+      "command": "codegraph",
+      "args": [
+        "serve",
+        "--mcp"
+      ]
     }
   }
 }

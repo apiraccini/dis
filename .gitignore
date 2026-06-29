@@ -24,3 +24,5 @@ dist-ssr/
 
 # Private files
 REQUEST.md
+.codegraph
+.claude

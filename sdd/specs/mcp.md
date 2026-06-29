@@ -42,7 +42,8 @@
     `tags` (optional list[str], OR semantics), `document_ids` (optional list[str],
     UUID membership)
   - Output: list of `SearchHit` — each with `document_id`, `document_name`, `tags`,
-    `chunk_index`, `text`, `score` (float, 0..1)
+    `chunk_index`, `text`, `score` (cosine similarity, -1..1, higher = more similar;
+    typically near 0..1 for normalized embeddings)
   - Scenario: unfiltered search — GIVEN chunks with varied content, WHEN `search` is
     called with a query and no filters, THEN hits from all documents are returned
   - Scenario: tag-filtered search — WHEN `search` is called with `tags=["compliance"]`,
