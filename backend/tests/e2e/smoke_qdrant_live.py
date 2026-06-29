@@ -4,7 +4,7 @@ Run against the compose `qdrant` service. Not part of the unit suite — invoke
 explicitly:
 
     POSTGRES_HOST=localhost QDRANT_URL=http://localhost:6333 \
-        uv run python -m tests.smoke_qdrant_live
+        uv run python -m tests.e2e.smoke_qdrant_live
 
 Asserts: ensure_collection (idempotent) → upsert two chunks → search returns
 ranked hits → filter by tag and document_id → delete_by_document → re-search
