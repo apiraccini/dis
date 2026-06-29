@@ -7,13 +7,19 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from src.core.dependencies import get_adapters, get_document_repository, get_ingestion_service
+from src.core.dependencies import (
+    get_app_adapters,
+    get_document_repository,
+    get_ingestion_service,
+)
 from src.models.document import Document
 from src.repositories.in_memory import InMemoryDocumentRepository, InMemoryVectorStore
 from src.repositories.protocols import DocumentRepository
 from src.services.factory import Adapters
 from src.services.ingestion import IngestionService
 from tests._fakes import FakeChunker, FakeEmbedder, FakeParser
+
+pytestmark = pytest.mark.integration
 
 PARSED_TEXT = 'content of the uploaded file'
 
@@ -50,7 +56,7 @@ def _override_dependencies(
     async def _get_docs() -> AsyncGenerator[DocumentRepository, None]:
         yield docs
 
-    app.dependency_overrides[get_adapters] = lambda: adapters
+    app.dependency_overrides[get_app_adapters] = lambda: adapters
     app.dependency_overrides[get_ingestion_service] = _get_service
     app.dependency_overrides[get_document_repository] = _get_docs
 

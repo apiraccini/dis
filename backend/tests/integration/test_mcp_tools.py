@@ -16,6 +16,8 @@ from src.repositories.in_memory import InMemoryDocumentRepository, InMemoryVecto
 from src.services.factory import Adapters
 from tests._fakes import FakeEmbedder
 
+pytestmark = pytest.mark.integration
+
 # ── Fixtures ────────────────────────────────────────────────────────────
 
 
@@ -73,12 +75,12 @@ async def _seed_vector(
     text: str = 'hello world',
     index: int = 0,
 ) -> None:
-    from src.repositories.protocols import ChunkRecord
+    from src.repositories.protocols import ChunkPayload
 
     await vectors.upsert(
         document_id,
         [
-            ChunkRecord(
+            ChunkPayload(
                 document_id=document_id,
                 document_name=name,
                 tags=tags or [],

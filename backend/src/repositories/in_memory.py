@@ -7,7 +7,7 @@ from uuid import UUID
 
 from src.core.errors import DocumentNotFoundError, DuplicateDocumentError
 from src.models.document import Document, DocumentStatus, normalize_tags
-from src.repositories.protocols import ChunkRecord, SearchHit
+from src.repositories.protocols import ChunkPayload, SearchHit
 
 __all__ = ['InMemoryDocumentRepository', 'InMemoryVectorStore']
 
@@ -92,6 +92,12 @@ class InMemoryDocumentRepository:
         page = matching[offset : offset + limit]
         return [copy.deepcopy(d) for d in page], total
 
+    async def list_all_tags(self) -> list[str]:
+        seen: set[str] = set()
+        for doc in self._store.values():
+            seen.update(doc.tags)
+        return sorted(seen)
+
 
 class InMemoryVectorStore:
     """Dict-backed async vector store (canonical test double).
@@ -101,12 +107,12 @@ class InMemoryVectorStore:
     """
 
     def __init__(self) -> None:
-        self._vectors: dict[UUID, list[tuple[ChunkRecord, list[float]]]] = {}
+        self._vectors: dict[UUID, list[tuple[ChunkPayload, list[float]]]] = {}
 
     async def upsert(
         self,
         document_id: UUID,
-        chunks: list[ChunkRecord],
+        chunks: list[ChunkPayload],
         vectors: list[list[float]],
     ) -> None:
         if len(chunks) != len(vectors):

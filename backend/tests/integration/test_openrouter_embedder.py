@@ -10,6 +10,8 @@ from src.core.errors import EmbeddingError
 from src.services.adapters.openrouter_embedder import OpenRouterEmbedder
 from src.services.protocols import Embedder
 
+pytestmark = pytest.mark.integration
+
 
 class _FakeEmbeddings:
     def __init__(self, create_fn: Any) -> None:

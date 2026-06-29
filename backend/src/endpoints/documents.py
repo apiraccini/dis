@@ -31,10 +31,10 @@ IngestionServiceDep = Annotated[IngestionService | None, Depends(get_ingestion_s
 DocumentRepoDep = Annotated[DocumentRepository | None, Depends(get_document_repository)]
 
 
-def _parse_tags(tags_str: str | None) -> list[str]:
+def _split_tags(tags_str: str | None) -> list[str]:
     if not tags_str or not tags_str.strip():
         return []
-    return [t.strip() for t in tags_str.split(',') if t.strip()]
+    return tags_str.split(',')
 
 
 def _to_detail(doc: Document) -> DocumentDetailResponse:
@@ -58,7 +58,7 @@ async def upload_document(
     Returns 202 + processing document on first upload (background finalize).
     """
     content = await file.read()
-    tags_list = _parse_tags(tags)
+    tags_list = _split_tags(tags)
 
     try:
         prepared = await service.prepare(  # ty: ignore[unresolved-attribute]
@@ -79,7 +79,7 @@ async def upload_document(
             status_code=status.HTTP_200_OK,
         )
 
-    background_tasks.add_task(service.finalize_background_safe, prepared.id)  # ty: ignore[unresolved-attribute]
+    background_tasks.add_task(service.finalize_safe, prepared.id)  # ty: ignore[unresolved-attribute]
     return Response(
         content=_to_detail(prepared).model_dump_json(),
         media_type='application/json',

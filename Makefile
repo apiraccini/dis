@@ -17,7 +17,7 @@ lint:
 	cd frontend && bun run lint
 
 test:
-	cd backend && uv run pytest
+	cd backend && uv run coverage run -m pytest && uv run coverage report --fail-under=85
 	cd frontend && bun run test
 
 build:

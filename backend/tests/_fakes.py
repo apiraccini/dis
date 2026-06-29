@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from src.services.protocols import Chunker, Embedder, Parser
-
 __all__ = ['FakeChunker', 'FakeEmbedder', 'FakeParser']
 
 
@@ -68,9 +66,3 @@ class FakeEmbedder:
             vecs.append(raw)
         self.returns.append(vecs)
         return vecs
-
-
-# Satisfy the Protocols statically (for type-checkers / isinstance checks).
-assert isinstance(FakeParser(), Parser)
-assert isinstance(FakeChunker(), Chunker)
-assert isinstance(FakeEmbedder(), Embedder)

@@ -4,20 +4,23 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock
 from uuid import UUID
 
+import pytest
 from qdrant_client.http import models as qm
 
 from src.repositories.protocols import (
-    ChunkRecord,
+    ChunkPayload,
     VectorStore,
 )
 from src.services.adapters.qdrant_vector_store import QdrantVectorStore
 
+pytestmark = pytest.mark.integration
+
 DOC_ID = UUID('11111111-1111-1111-1111-111111111111')
 
 
-def _chunks(n: int) -> list[ChunkRecord]:
+def _chunks(n: int) -> list[ChunkPayload]:
     return [
-        ChunkRecord(
+        ChunkPayload(
             document_id=DOC_ID,
             document_name='report.pdf',
             tags=['compliance', 'finance'],

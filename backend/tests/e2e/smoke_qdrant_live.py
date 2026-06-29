@@ -21,7 +21,7 @@ from uuid import UUID
 from qdrant_client import AsyncQdrantClient
 from qdrant_client.http import models as qm
 
-from src.repositories.protocols import ChunkRecord
+from src.repositories.protocols import ChunkPayload
 from src.services.adapters.qdrant_vector_store import QdrantVectorStore
 
 DOC_ID = UUID('22222222-2222-2222-2222-222222222222')
@@ -56,8 +56,8 @@ async def main() -> None:
 
     # 3. upsert two chunks.
     chunks = [
-        ChunkRecord(DOC_ID, 'report.pdf', ['compliance', 'finance'], 0, 'revenue grew 10%'),
-        ChunkRecord(DOC_ID, 'report.pdf', ['compliance', 'finance'], 1, 'audit passed cleanly'),
+        ChunkPayload(DOC_ID, 'report.pdf', ['compliance', 'finance'], 0, 'revenue grew 10%'),
+        ChunkPayload(DOC_ID, 'report.pdf', ['compliance', 'finance'], 1, 'audit passed cleanly'),
     ]
     vectors = [[0.9, 0.1, 0.0] + [0.0] * 1533, [0.1, 0.9, 0.0] + [0.0] * 1533]
     await store.upsert(DOC_ID, chunks, vectors)

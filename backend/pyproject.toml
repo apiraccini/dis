@@ -2,7 +2,7 @@
 name = "dis-backend"
 version = "0.1.0"
 description = "Document Intelligence Server — REST API, ingestion pipeline, and MCP server."
-requires-python = ">=3.12"
+requires-python = ">=3.12,<3.13"
 dependencies = [
     "fastapi[standard]",
     "sqlmodel",
@@ -24,6 +24,7 @@ dev = [
     "ruff",
     "ty",
     "httpx2>=2.5.0",
+    "coverage[toml]",
 ]
 
 [build-system]
@@ -35,7 +36,11 @@ packages = ["src/"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
-testpaths = ["tests"]
+testpaths = ["tests/unit", "tests/integration"]
+markers = [
+    "integration: tests that exercise real adapters (need config/env)",
+    "e2e: tests that require a running compose stack",
+]
 
 [tool.ruff]
 line-length = 100
@@ -52,5 +57,13 @@ ignore = []
 quote-style = "single"
 indent-style = "space"
 line-ending = "auto"
+
+[tool.coverage.run]
+source = ["src/"]
+omit = ["src/main.py", "**/__init__.py"]
+
+[tool.coverage.report]
+fail_under = 85
+show_missing = true
 
 [tool.ty]

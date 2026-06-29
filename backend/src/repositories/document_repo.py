@@ -111,3 +111,10 @@ class SqlModelDocumentRepository:
         page_result = await self._session.exec(stmt.offset(offset).limit(limit))
         rows = list(page_result.all())
         return rows, total
+
+    async def list_all_tags(self) -> list[str]:
+        rows, _ = await self.list_documents(limit=10_000)
+        seen: set[str] = set()
+        for doc in rows:
+            seen.update(doc.tags)
+        return sorted(seen)

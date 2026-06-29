@@ -6,7 +6,7 @@ import logging
 from uuid import UUID
 
 from src.models.document import Document, DocumentStatus, normalize_tags
-from src.repositories.protocols import ChunkRecord, DocumentRepository, VectorStore
+from src.repositories.protocols import ChunkPayload, DocumentRepository, VectorStore
 from src.services.protocols import Chunker, Embedder, Parser
 
 logger = logging.getLogger(__name__)
@@ -31,13 +31,13 @@ class IngestionService:
         self._vectors = vectors
 
     async def prepare(self, *, content: bytes, filename: str, tags: list[str]) -> Document:
-        parsed_text = await self._parser.parse(content, filename)
-        content_hash = hashlib.sha256(parsed_text.encode()).hexdigest()
+        content_hash = hashlib.sha256(content).hexdigest()
 
         existing = await self._documents.get_by_hash(content_hash)
         if existing is not None:
             return existing
 
+        parsed_text = await self._parser.parse(content, filename)
         document = Document(
             filename=filename,
             content_type=None,
@@ -56,40 +56,30 @@ class IngestionService:
 
             raise DocumentNotFoundError(f'no document with id {document_id}')
 
-        try:
-            chunks = self._chunker.chunk(document.parsed_text)
-            vectors = await self._embedder.embed(chunks)
-            records = [
-                ChunkRecord(
-                    document_id=document.id,
-                    document_name=document.filename,
-                    tags=list(document.tags),
-                    chunk_index=i,
-                    text=chunk,
-                )
-                for i, chunk in enumerate(chunks)
-            ]
-            await self._vectors.upsert(document.id, records, vectors)
-        except Exception as exc:
-            await self._documents.update_status(
-                document_id, DocumentStatus.failed, error_message=str(exc)
+        chunks = self._chunker.chunk(document.parsed_text)
+        vectors = await self._embedder.embed(chunks)
+        records = [
+            ChunkPayload(
+                document_id=document.id,
+                document_name=document.filename,
+                tags=list(document.tags),
+                chunk_index=i,
+                text=chunk,
             )
-            raise
+            for i, chunk in enumerate(chunks)
+        ]
+        await self._vectors.upsert(document.id, records, vectors)
         await self._documents.update_chunk_count(document_id, len(chunks))
         return await self._documents.update_status(document_id, DocumentStatus.ready)
 
-    async def finalize_background_safe(self, document_id: UUID) -> None:
+    async def finalize_safe(self, document_id: UUID) -> None:
         """Run finalize in a background-task-safe way.
 
         Never propagates exceptions — catches and sets failed status instead.
-        Preserves the original error message from finalize if available.
         """
         try:
             await self.finalize(document_id)
         except Exception as exc:
-            # finalize sets failed status + error_message before raising, but
-            # if it failed outside the try block (e.g. update_chunk_count), we
-            # ensure failed status here.
             with contextlib.suppress(Exception):
                 await self._documents.update_status(
                     document_id,

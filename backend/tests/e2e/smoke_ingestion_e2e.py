@@ -23,7 +23,6 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlmodel import SQLModel
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from src import models  # noqa: F401  (register Document on metadata)
 from src.core.config import settings
 from src.repositories.document_repo import SqlModelDocumentRepository
 from src.services.adapters.markitdown_parser import MarkItDownParser

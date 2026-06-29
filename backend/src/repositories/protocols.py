@@ -8,7 +8,7 @@ from src.core.errors import DocumentNotFoundError, DuplicateDocumentError  # noq
 from src.models.document import Document, DocumentStatus
 
 __all__ = [
-    'ChunkRecord',
+    'ChunkPayload',
     'DocumentRepository',
     'SearchHit',
     'VectorStore',
@@ -61,9 +61,11 @@ class DocumentRepository(Protocol):
         limit: int = 1000,
     ) -> tuple[list[Document], int]: ...
 
+    async def list_all_tags(self) -> list[str]: ...
+
 
 @dataclass(frozen=True)
-class ChunkRecord:
+class ChunkPayload:
     """Payload stored alongside each vector."""
 
     document_id: UUID
@@ -98,7 +100,7 @@ class VectorStore(Protocol):
     async def upsert(
         self,
         document_id: UUID,
-        chunks: list[ChunkRecord],
+        chunks: list[ChunkPayload],
         vectors: list[list[float]],
     ) -> None: ...
 

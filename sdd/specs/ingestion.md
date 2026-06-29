@@ -1,8 +1,9 @@
-- **Requirement: Pipeline order** — Ingestion SHALL parse, then hash the parsed text, then dedup-check, then create the document as `processing`, then chunk, then embed, then upsert vectors, then mark `ready`.
-  - Scenario: dedup hit short-circuits — GIVEN a document with content_hash H exists, WHEN ingestion produces the same hash H, THEN the existing document is returned unchanged and no chunking, embedding, or upsert occurs.
-- **Requirement: Content hash source** — The content hash SHALL be SHA-256 of the parsed text, not the raw upload bytes.
-  - Scenario: different bytes, same parsed text — GIVEN two uploads with different bytes that parse to the same text, WHEN both are ingested, THEN the second is treated as a duplicate.
-- **Requirement: Two-phase entry** — Ingestion SHALL expose `prepare` (parse → hash → dedup → create as processing) and `finalize` (chunk → embed → upsert → set status); a full `ingest` SHALL compose both.
+- **Requirement: Pipeline order** — Ingestion SHALL hash the raw upload bytes, then dedup-check, then (on miss) parse, then create the document as `processing`, then chunk, then embed, then upsert vectors, then mark `ready`.
+  - Scenario: dedup hit short-circuits — GIVEN a document with content_hash H exists, WHEN an upload with the same raw-byte hash arrives, THEN the existing document is returned unchanged, no parsing occurs, and no chunking, embedding, or upsert occurs.
+- **Requirement: Dedup identity** — The content hash SHALL be SHA-256 of the raw upload bytes, not the parsed text.
+  - Scenario: same bytes, different filename — GIVEN a PDF uploaded once, WHEN the same bytes are uploaded with a different filename, THEN the second upload is treated as a duplicate and no parsing occurs.
+  - Scenario: different bytes, same content — GIVEN two uploads with different bytes that parse to the same text, WHEN both are ingested, THEN each is a distinct document.
+- **Requirement: Two-phase entry** — Ingestion SHALL expose `prepare` (hash → dedup → on miss: parse → create as processing) and `finalize` (chunk → embed → upsert → set status); a full `ingest` SHALL compose both.
   - Scenario: async upload — GIVEN an upload, WHEN `prepare` runs, THEN a Document exists with status `processing` and parsed text persisted, and `finalize` may run later using only the document id.
 - **Requirement: Background finalize** — When `finalize` is called from a background task, any exception SHALL be caught and the document status set to `failed`; the exception SHALL NOT propagate to the caller.
   - Scenario: background-task failure — GIVEN a document in `processing` status, WHEN `finalize` raises inside a background task, THEN the exception is caught, the document status becomes `failed` with the error message, and no unhandled exception escapes to crash the server.

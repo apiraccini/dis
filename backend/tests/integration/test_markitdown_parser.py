@@ -6,6 +6,8 @@ from src.core.errors import ParseError
 from src.services.adapters.markitdown_parser import MarkItDownParser
 from src.services.protocols import Parser
 
+pytestmark = pytest.mark.integration
+
 
 def _make_pdf(text: str) -> bytes:
     """Build a minimal valid PDF with a single text-layer line."""

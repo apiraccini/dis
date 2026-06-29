@@ -16,7 +16,7 @@ jobs:
         uses: astral-sh/setup-uv@v6
 
       - name: Set up Python
-        run: uv python install
+        run: uv python install 3.12
 
       - name: Install backend deps
         run: uv sync --dev
@@ -35,7 +35,7 @@ jobs:
         working-directory: backend
 
       - name: Test backend
-        run: uv run pytest
+        run: uv run coverage run -m pytest && uv run coverage report --fail-under=85
         working-directory: backend
 
       - name: Setup Bun

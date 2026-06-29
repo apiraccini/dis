@@ -6,21 +6,68 @@ Backend infrastructure for a tagged-document knowledge base: a document-manageme
 
 ## Architecture
 
-Four services (see `docker-compose.yaml`):
+The system is composed of four Docker services and a layered Python backend:
 
-- **db** — PostgreSQL 17: document metadata (documents, tags) + parsed full text.
-- **qdrant** — vector store: chunk text + embeddings + payload (document id/name, tags) for filtered semantic search. No chunk rows in Postgres.
-- **backend** — one FastAPI app serving:
-  - REST API for document management + ingestion (`/api/...`)
-  - MCP server mounted at `/mcp` (FastMCP, Streamable HTTP, static Bearer-token auth)
-- **frontend** — React SPA (nginx-served, proxies `/api` to the backend).
+### Service topology
 
 ```mermaid
-graph LR
-    frontend["frontend (React)"] -->|/api| backend["backend (FastAPI)"]
-    backend -->|SQL| db[("db<br/>Postgres: metadata")]
-    backend -->|gRPC/HTTP| qdrant[("qdrant<br/>vectors + payload")]
-    backend -.->|/mcp| mcp["MCP (Streamable HTTP)"]
+flowchart TB
+    subgraph User
+        browser["Browser"]
+        agent["MCP Agent<br/>(Claude, custom)"]
+    end
+
+    subgraph Docker
+        frontend["frontend<br/>React SPA<br/>nginx :80"]
+        backend["backend<br/>FastAPI<br/>:8000"]
+        db[("db<br/>PostgreSQL 17<br/>:5432")]
+        qdrant[("qdrant<br/>Vector store<br/>:6333")]
+    end
+
+    browser -->|GET /| frontend
+    browser -->|/api/*| backend
+    agent -->|/mcp (Streamable HTTP)
+    Bearer auth| backend
+    frontend -->|/api/* proxy| backend
+    backend -->|SQL/asyncpg| db
+    backend -->|gRPC| qdrant
+```
+
+### Data flow: document upload
+
+```mermaid
+sequenceDiagram
+    participant U as User/Client
+    participant API as POST /api/documents/upload
+    participant I as IngestionService
+    participant P as Parser
+    participant R as DocumentRepo
+    participant V as VectorStore
+
+    U->>API: multipart (file + tags)
+    API->>I: prepare(content, filename, tags)
+    I->>P: parse(content)
+    P-->>I: markdown text
+    I->>I: SHA-256(text) → content_hash
+    I->>R: get_by_hash(hash)
+    alt hash exists (dedup)
+        R-->>I: existing Document
+        I-->>API: document (status=ready)
+        API-->>U: 200 OK (existing doc)
+    else new document
+        I->>R: create(status=processing)
+        R-->>I: Document
+        I-->>API: Document
+        API-->>U: 202 Accepted (processing)
+        API->>I: background: finalize(id)
+        I->>P: chunk(text)
+        I->>I: embed(chunks)
+        I->>V: upsert(records, vectors)
+        I->>R: update_status(ready)
+        alt failure
+            I->>R: update_status(failed, error)
+        end
+    end
 ```
 
 ## Stack
@@ -32,9 +79,6 @@ graph LR
 - **Parsing → markitdown** — Markdown-first converter (PDF + Office + plain text). Pure-Python deps, no system packages. Wrapped behind `Parser` Protocol.
 - **MCP transport → Streamable HTTP** via FastMCP — stateless, no session affinity.
 - **MCP SDK → fastmcp** — cleaner mounting API than mcp SDK's built-in server.
-
-## Decisions and Logic
-
 
 ## Quick start
 

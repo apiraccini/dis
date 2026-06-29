@@ -6,7 +6,7 @@ from uuid import UUID
 from qdrant_client import AsyncQdrantClient
 from qdrant_client.http import models as qm
 
-from src.repositories.protocols import ChunkRecord, SearchHit
+from src.repositories.protocols import ChunkPayload, SearchHit
 
 __all__ = ['QdrantVectorStore']
 
@@ -65,7 +65,7 @@ class QdrantVectorStore:
     async def upsert(
         self,
         document_id: UUID,
-        chunks: list[ChunkRecord],
+        chunks: list[ChunkPayload],
         vectors: list[list[float]],
     ) -> None:
         await self._delete_by_document(document_id)

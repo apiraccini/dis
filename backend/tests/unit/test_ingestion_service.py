@@ -45,11 +45,12 @@ def _make_service[E: Embedder](
     return service, parser, ch, embedder, docs, vectors
 
 
-async def test_prepare_dedup_hit_returns_existing_doc_unchanged() -> None:
+async def test_prepare_dedup_hit_returns_existing_doc_without_parsing() -> None:
     service, parser, ch, emb, docs, vectors = _make_service(embedder=FakeEmbedder(dimension=4))
+    raw_hash = hashlib.sha256(b'upload bytes').hexdigest()
     existing = Document(
         filename='old.pdf',
-        content_hash=_hash(PARSED_TEXT),
+        content_hash=raw_hash,
         parsed_text=PARSED_TEXT,
         tags=['compliance'],
         size_bytes=99,
@@ -60,16 +61,16 @@ async def test_prepare_dedup_hit_returns_existing_doc_unchanged() -> None:
     result = await service.prepare(content=b'upload bytes', filename='new.pdf', tags=['hr'])
 
     assert result.id == existing.id
-    assert result.content_hash == _hash(PARSED_TEXT)
-    # No expensive work ran.
-    assert parser.calls == [(b'upload bytes', 'new.pdf')]
+    assert result.content_hash == raw_hash
+    # No expensive work ran — parser wasn't called because hash matched first.
+    assert parser.calls == []
     assert ch.calls == []
     assert emb.calls == []
     # No vectors upserted.
     assert await vectors.search(query=[1.0], top_k=10) == []
 
 
-async def test_prepare_dedup_miss_creates_processing_doc_with_hashed_parsed_text() -> None:
+async def test_prepare_dedup_miss_creates_processing_doc_with_raw_byte_hash() -> None:
     service, _, _, _, docs, _ = _make_service(embedder=FakeEmbedder(dimension=4))
 
     result = await service.prepare(
@@ -80,7 +81,7 @@ async def test_prepare_dedup_miss_creates_processing_doc_with_hashed_parsed_text
 
     assert result.id is not None
     assert result.status == DocumentStatus.processing
-    assert result.content_hash == _hash(PARSED_TEXT)
+    assert result.content_hash == hashlib.sha256(b'raw upload bytes').hexdigest()
     assert result.parsed_text == PARSED_TEXT
     assert result.tags == ['compliance', 'hr']  # normalized + deduped
     assert result.size_bytes == len(b'raw upload bytes')
@@ -89,23 +90,6 @@ async def test_prepare_dedup_miss_creates_processing_doc_with_hashed_parsed_text
     fetched = await docs.get_by_id(result.id)
     assert fetched is not None
     assert fetched.status == DocumentStatus.processing
-
-
-async def test_prepare_hashes_parsed_text_not_raw_bytes() -> None:
-    # Two different raw uploads that parse to the same text must dedup.
-    service, _, _, _, docs, _ = _make_service(
-        parsed_text='same parsed text', embedder=FakeEmbedder(dimension=4)
-    )
-
-    first = await service.prepare(content=b'bytes-one', filename='a.txt', tags=[])
-    second = await service.prepare(content=b'bytes-two-different', filename='b.txt', tags=[])
-
-    assert second.id == first.id  # dedup hit
-    assert second.content_hash == first.content_hash
-    # Both parse calls ran (parse is cheap), but only one document was created.
-    all_docs, total = await docs.list_documents()
-    assert total == 1
-    assert all_docs[0].size_bytes == len(b'bytes-one')  # first upload's size retained
 
 
 async def test_finalize_happy_path_sets_ready_and_chunk_count() -> None:
@@ -151,7 +135,8 @@ async def test_finalize_upserts_chunk_records_with_filename_tags_and_indices() -
         assert h.text == expected_chunks[i]
 
 
-async def test_finalize_embedder_failure_sets_failed_and_upserts_no_vectors() -> None:
+async def test_finalize_embedder_failure_raises_and_does_not_upsert() -> None:
+    """finalize raises without catching — status is managed by the caller."""
     from tests._failing_embedder import FailingEmbedder
 
     failing = FailingEmbedder(dimension=4, exc=RuntimeError('embedder exploded'))
@@ -161,11 +146,11 @@ async def test_finalize_embedder_failure_sets_failed_and_upserts_no_vectors() ->
     with pytest.raises(RuntimeError, match='embedder exploded'):
         await service.finalize(prepared.id)
 
-    failed = await docs.get_by_id(prepared.id)
-    assert failed is not None
-    assert failed.status == DocumentStatus.failed
-    assert failed.error_message == 'embedder exploded'
-    assert failed.chunk_count == 0
+    # Document stays in processing status (finalize does not set failed itself).
+    doc = await docs.get_by_id(prepared.id)
+    assert doc is not None
+    assert doc.status == DocumentStatus.processing
+    assert doc.chunk_count == 0
     # No vectors were upserted (upsert is atomic per document).
     assert await vectors.search(query=[1.0, 0.0, 0.0, 0.0], top_k=10) == []
 
@@ -192,8 +177,8 @@ async def test_ingest_full_pipeline_composes_prepare_and_finalize() -> None:
 async def test_ingest_dedup_skips_finalize() -> None:
     service, _, ch, emb, _, _ = _make_service(embedder=FakeEmbedder(dimension=4))
 
-    first = await service.ingest(content=b'one', filename='a.txt', tags=[])
-    second = await service.ingest(content=b'two', filename='b.txt', tags=[])
+    first = await service.ingest(content=b'same bytes', filename='a.txt', tags=[])
+    second = await service.ingest(content=b'same bytes', filename='b.txt', tags=[])
 
     assert second.id == first.id
     assert second.status == DocumentStatus.ready
@@ -235,7 +220,7 @@ async def test_finalize_from_background_task_catches_exception_and_sets_failed()
     assert prepared.status == DocumentStatus.processing
 
     # No exception should escape — it's a background task call
-    await service.finalize_background_safe(prepared.id)
+    await service.finalize_safe(prepared.id)
 
     failed = await docs.get_by_id(prepared.id)
     assert failed is not None

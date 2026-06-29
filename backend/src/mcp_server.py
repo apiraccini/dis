@@ -6,10 +6,11 @@ from fastmcp import FastMCP
 from fastmcp.dependencies import Depends
 from pydantic import BaseModel
 
+from src.core.dependencies import get_adapters, get_document_repo
 from src.core.security import build_mcp_auth
 from src.repositories.protocols import DocumentRepository, SearchHit
-from src.services.di import get_adapters, get_document_repo
 from src.services.factory import Adapters
+from src.services.tags import list_tags as list_tags_service
 
 mcp = FastMCP('DIS Knowledge Base', auth=build_mcp_auth())
 
@@ -90,11 +91,7 @@ async def list_tags(
     repo: DocumentRepository = Depends(get_document_repo),  # noqa: B008
 ) -> ListTagsResult:
     """Return all unique tags sorted alphabetically."""
-    rows, _ = await repo.list_documents(offset=0, limit=10000)
-    seen: set[str] = set()
-    for doc in rows:
-        seen.update(doc.tags)
-    return ListTagsResult(tags=sorted(seen))
+    return ListTagsResult(tags=await list_tags_service(repo))
 
 
 async def _search(

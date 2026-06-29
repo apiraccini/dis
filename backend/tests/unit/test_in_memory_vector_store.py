@@ -1,11 +1,13 @@
 from uuid import uuid4
 
 from src.repositories.in_memory import InMemoryVectorStore
-from src.repositories.protocols import ChunkRecord, SearchHit, VectorStore
+from src.repositories.protocols import ChunkPayload, SearchHit, VectorStore
 
 
-def _chunk(document_id, name='doc.pdf', tags=('compliance',), index=0, text='hello') -> ChunkRecord:
-    return ChunkRecord(
+def _chunk(
+    document_id, name='doc.pdf', tags=('compliance',), index=0, text='hello'
+) -> ChunkPayload:
+    return ChunkPayload(
         document_id=document_id,
         document_name=name,
         tags=list(tags),

@@ -47,7 +47,7 @@ class Document(SQLModel, table=True):
     content_type: str | None = None
     size_bytes: int = 0
     # SHA-256 hex of the parsed text — the dedup key. Unique constraint enforced at the DB.
-    content_hash: str = Field(index=True, unique=True)
+    content_hash: str = Field(unique=True)
     parsed_text: str
     tags: list[str] = Field(
         default_factory=list,
