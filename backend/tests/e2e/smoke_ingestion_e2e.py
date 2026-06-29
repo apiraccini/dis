@@ -3,7 +3,7 @@
 Run:
 
     POSTGRES_HOST=localhost QDRANT_URL=http://localhost:6333 \
-        uv run python -m tests.smoke_ingestion_e2e
+        uv run python -m tests.e2e.smoke_ingestion_e2e
 
 Feeds a tiny born-digital PDF through the real MarkItDownParser → SemchunkChunker
 → OpenRouterEmbedder (Qwen3-embedding-8b) → QdrantVectorStore + SqlModelDocumentRepository,
