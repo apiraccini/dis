@@ -28,8 +28,11 @@ bun run test             # vitest
 ```
 
 ## Backlog
-- [ ] Document management UI
-  - upload form (file picker + tag input, multiple tags)
-  - document list table (filename, tags, upload date, chunk count)
-  - delete action per row
-  - API client hitting `/api/...` (proxied in dev via vite, via nginx in prod)
+
+### v0.1.0
+- [x] Document management UI — minimal but functional (REQUEST.md §A; eval priority 5, not graded on design)
+  - Foundation: Tailwind setup; TS types mirroring `DocumentResponse`/`DocumentListResponse`/`DocumentStatus`; typed `fetch` client over `/api/*` (`listDocuments`, `uploadDocument`, `deleteDocument`); app shell
+  - Upload form: file picker (PDF + text min) + multi-tag input → `POST /api/documents/upload`; handle 200 (dedup), 202 (processing), 422 (parse error)
+  - Document list table: filename, tags, status badge, size, chunk count, upload date; loading/empty/error states; poll while any row is `processing`
+  - Delete action per row (confirm → `DELETE`, refetch)
+  - Tests (Vitest) + Biome clean + `bun run build` green; verify end-to-end against the live Docker stack

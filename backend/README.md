@@ -48,6 +48,9 @@ uv run uvicorn src.main:app --reload
 ```
 
 ## Backlog
+
+### v0.1.0
+
 - [x] Data models + repositories
   - `models/document.py` (Document: parsed full text + content hash for dedup [SHA-256 of raw upload bytes], status lifecycle, **tags as a Postgres `text[]` column** instead of a Tag/DocumentTag link — see `sdd/specs/documents.md`)
   - registered in `db.py` `init_db()` so `create_all` sees the table
@@ -73,7 +76,3 @@ uv run uvicorn src.main:app --reload
   - query-time embeddings via `adapters.query_embedder` (separate `OpenRouterEmbedder` with `input_type=search_query`)
   - FastMCP `Depends()` DI: `get_adapters()` for the adapters singleton, `get_document_repo()` for request-scoped DB sessions
   - `ping` tool removed after migration
-
-## Next steps
-1. **Frontend UI** — upload + tag, list, delete against the REST API.
-2. _Refinement_ — scanned-PDF OCR (`markitdown-ocr`), Alembic migrations, REST auth, deployment + demo video.
