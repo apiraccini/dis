@@ -33,7 +33,9 @@ def _override_dependencies(
     chunker = FakeChunker(words_per_chunk=10)
     embedder = FakeEmbedder(dimension=4)
 
-    adapters = Adapters(parser=parser, chunker=chunker, embedder=embedder, vectors=vectors)
+    adapters = Adapters(
+        parser=parser, chunker=chunker, embedder=embedder, query_embedder=embedder, vectors=vectors
+    )
 
     async def _get_service() -> AsyncGenerator[IngestionService, None]:
         service = IngestionService(

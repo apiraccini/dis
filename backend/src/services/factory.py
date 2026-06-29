@@ -29,6 +29,7 @@ class Adapters:
     parser: Parser
     chunker: Chunker
     embedder: Embedder
+    query_embedder: Embedder
     vectors: VectorStore  # concrete: lifespan calls `.provision(dim)`
 
 
@@ -49,7 +50,21 @@ def build_adapters(settings: Settings) -> Adapters:
         base_url=settings.embedding_base_url,
         api_key=settings.openrouter_api_key,
     )
-    return Adapters(parser=parser, chunker=chunker, embedder=embedder, vectors=vectors)
+    query_embedder = OpenRouterEmbedder(
+        model=settings.embedding_model,
+        dimensions=settings.embedding_dimensions,
+        batch_size=settings.embedding_batch_size,
+        input_type=settings.embedding_input_type_query,
+        base_url=settings.embedding_base_url,
+        api_key=settings.openrouter_api_key,
+    )
+    return Adapters(
+        parser=parser,
+        chunker=chunker,
+        embedder=embedder,
+        query_embedder=query_embedder,
+        vectors=vectors,
+    )
 
 
 def build_ingestion_service(session: AsyncSession, adapters: Adapters) -> IngestionService:

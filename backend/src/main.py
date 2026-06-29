@@ -10,6 +10,7 @@ from src.db import async_session, init_db
 from src.endpoints import documents, tags
 from src.mcp_server import mcp_app
 from src.repositories.document_repo import SqlModelDocumentRepository
+from src.services.di import set_adapters
 from src.services.factory import build_adapters
 from src.services.ingestion import cleanup_zombies
 
@@ -22,6 +23,7 @@ async def db_lifespan(app: FastAPI) -> AsyncIterator[None]:
     adapters = build_adapters(settings)
     await adapters.vectors.provision(settings.embedding_dimensions)
     app.state.adapters = adapters
+    set_adapters(adapters)
 
     # Clean up zombie documents left in processing state by a prior crash.
     async with async_session() as session:

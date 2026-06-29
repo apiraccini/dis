@@ -13,7 +13,7 @@ FastAPI app serving the REST API, ingestion pipeline, and MCP server (the core o
 ```
 src/
 ├── main.py              FastAPI app: CORS, /health, mounts /mcp, combines lifespans
-├── mcp_server.py        FastMCP instance + http_app() (path=/, stateless, json) + ping tool
+├── mcp_server.py        FastMCP instance + http_app() (path=/, stateless, json) + 5 knowledge-base tools
 ├── db.py                async engine + session factory + init_db (create_all)
 ├── core/
 │   ├── config.py        Settings (env vars, dev defaults)
@@ -66,18 +66,17 @@ uv run uvicorn src.main:app --reload
   - Qdrant collection auto-provisioned on startup in the FastAPI lifespan (`main.py`)
   - verified end-to-end via `tests/smoke_ingestion_e2e.py` against compose (db + qdrant)
   - _deferred refinement: scanned-PDF OCR via `markitdown-ocr` (LLM-vision plugin, OpenRouter key)_
-- [ ] Document management REST API
+- [x] Document management REST API
   - `schemas/document.py` (upload, list, delete payloads)
   - `endpoints/documents.py` (router under `/api`; upload triggers ingestion)
   - dedup via content hash (re-upload does not duplicate)
   - delete cascades: remove metadata in Postgres + vectors in Qdrant
-- [ ] MCP tools (`src/mcp_server.py`)
+- [x] MCP tools (`src/mcp_server.py`)
   - `list_documents`, `list_tags`, `search`, `search_by_tag`, `search_by_document`
-  - query-time embeddings use `input_type=search_query` (the embedder switch is already wired)
-  - remove the `ping` smoke-test tool once real tools land
+  - query-time embeddings via `adapters.query_embedder` (separate `OpenRouterEmbedder` with `input_type=search_query`)
+  - FastMCP `Depends()` DI: `get_adapters()` for the adapters singleton, `get_document_repo()` for request-scoped DB sessions
+  - `ping` tool removed after migration
 
 ## Next steps
-1. **Document management REST API** — `schemas/document.py` + `endpoints/documents.py`; upload triggers `IngestionService.ingest` (via `build_ingestion_service` from `app.state.adapters`), list/delete with Qdrant cascade. Dedup via content hash is already handled by `prepare`.
-2. **MCP tools** — the five knowledge-base tools over the now-functional ingestion + search. Design input schemas/output shapes from the agent's perspective (documented in the top-level README when they land).
-3. **Frontend UI** — upload + tag, list, delete against the REST API.
-4. _Refinement_ — scanned-PDF OCR (`markitdown-ocr`), Alembic migrations, REST auth, deployment + demo video.
+1. **Frontend UI** — upload + tag, list, delete against the REST API.
+2. _Refinement_ — scanned-PDF OCR (`markitdown-ocr`), Alembic migrations, REST auth, deployment + demo video.

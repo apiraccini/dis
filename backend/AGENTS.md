@@ -23,5 +23,8 @@
 - No business logic in endpoints; call services.
 - Repositories expose `typing.Protocol` interfaces for mocking.
 - MCP tools are registered on the `mcp` instance in `src/mcp_server.py` with `@mcp.tool`.
-- `stateless_http` and `json_response` go on `mcp.http_app(...)`, NOT the FastMCP constructor (PrefectHQ/fastmcp#3618).
+- FastMCP DI: use `Depends(get_document_repo)` for DB sessions and `Depends(get_adapters)` for the adapters singleton.
+  Dependencies requiring cleanup must be decorated with `@asynccontextmanager` (not bare async generators).
+- `stateless_http` and `json_response` go on `mcp.http_app(...)`, NOT the FastMCP constructor (see PrefectHQ/fastmcp#3618).
+  Calls to `mcp.http_app()` can appear before or after the `@mcp.tool` decorators — FastMCP resolves tools dynamically at request time, not at construction time.
 - The mounted MCP app needs its lifespan composed into the FastAPI app via `combine_lifespans` (see `src/main.py`).
