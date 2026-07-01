@@ -41,7 +41,6 @@ asyncio_mode = "auto"
 testpaths = ["tests/unit", "tests/integration"]
 markers = [
     "integration: tests that exercise real adapters (need config/env)",
-    "e2e: tests that require a running compose stack",
 ]
 
 [tool.ruff]

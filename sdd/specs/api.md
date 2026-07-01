@@ -8,7 +8,7 @@ Upload a file for ingestion. Accepts multipart form data (file + optional tags).
 
 - **Requirement: Upload accepts file + tags** — `POST /api/documents/upload` SHALL accept a multipart form with a `file` field (required) and an optional `tags` field (comma-separated string)
   - Scenario: upload with tags — GIVEN a multipart request with file `report.pdf` and `tags=compliance,audit`, WHEN uploaded, THEN the document is created with tags `["compliance", "audit"]`
-  - Scenario: dedup hit returns existing — GIVEN a file whose content matches an existing `ready` document, WHEN uploaded, THEN the endpoint returns 200 with the existing document and no background task is scheduled
+  - Scenario: dedup hit returns 409 — GIVEN a file whose content matches an existing document, WHEN uploaded, THEN the endpoint returns 409 with an error detail and no background task is scheduled
 - **Requirement: Upload returns 202 with document** — When `prepare` creates a new `processing` document, the endpoint SHALL return 202 with the full document body (including its id) and SHALL schedule `finalize` as a background task
 - **Requirement: Upload validates file type** — The endpoint SHALL reject files with unsupported extensions (not in a configured allowlist) with a 422 response before any parsing occurs
 

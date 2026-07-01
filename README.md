@@ -47,8 +47,8 @@ sequenceDiagram
     I->>R: get_by_hash(hash)
     alt hash exists (dedup)
         R-->>I: existing Document
-        I-->>API: document (status=ready)
-        API-->>U: 200 OK (existing doc)
+        I-->>API: raise DuplicateDocumentError
+        API-->>U: 409 Conflict (duplicate)
     else new document
         I->>P: parse(content)
         P-->>I: markdown text

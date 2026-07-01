@@ -2,19 +2,18 @@
 
 ## Test Pyramid
 
-The test suite is organised into three tiers:
+The test suite is organised into two tiers:
 
 - **unit/** — Pure unit tests. No external services, no real adapters. Fast (milliseconds). Test individual functions, model logic, and service orchestration with fake/mock dependencies.
 - **integration/** — Tests that exercise real adapters (MarkItDown, semchunk, OpenRouter, Qdrant client) or the full HTTP/MCP stack with fake backends. May need configuration/env vars but no running Docker containers.
-- **e2e/** — Full end-to-end tests that require a running compose stack (real Postgres + Qdrant). Not run in CI by default. Run the REST API suite with `scripts/run_e2e.sh`, which brings up the deps, launches the backend with a deterministic fake embedder (`USE_FAKE_EMBEDDER=true`, no OpenRouter key needed), runs `pytest -m e2e`, and tears everything down. The `smoke_*.py` modules are standalone scripts (`uv run python -m tests.e2e.smoke_*`) that exercise real adapters including OpenRouter.
 
 ## Conventions
 
 - **Shared fakes** live in `tests/_fakes.py` (module) or `tests/_fakes/` (package if they grow).
 - **No `__init__.py` imports** — each test file imports exactly what it needs.
-- **Pytest marks** — integration tests MUST be marked `@pytest.mark.integration`. e2e tests MUST be marked `@pytest.mark.e2e`.
+- **Pytest marks** — integration tests MUST be marked `@pytest.mark.integration`.
 - **Coverage** — `make test` runs all unit and integration tests under coverage with a minimum threshold of 85%.
-- **No real network in unit tests** — any test that calls an external API belongs in integration or e2e.
+- **No real network in unit tests** — any test that calls an external API belongs in integration.
 
 ## Fixtures & Mocking
 

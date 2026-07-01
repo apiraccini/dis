@@ -5,6 +5,7 @@ from uuid import uuid4
 
 import pytest
 
+from src.core.errors import DuplicateDocumentError
 from src.models.document import Document, DocumentStatus
 from src.repositories.in_memory import InMemoryDocumentRepository, InMemoryVectorStore
 from src.repositories.protocols import SparseVector
@@ -50,7 +51,7 @@ def _make_service[E: Embedder](
     return service, parser, ch, embedder, docs, vectors
 
 
-async def test_prepare_dedup_hit_returns_existing_doc_without_parsing() -> None:
+async def test_prepare_dedup_hit_raises_without_parsing() -> None:
     service, parser, ch, emb, docs, vectors = _make_service(embedder=FakeEmbedder(dimension=4))
     raw_hash = hashlib.sha256(b'upload bytes').hexdigest()
     existing = Document(
@@ -63,10 +64,9 @@ async def test_prepare_dedup_hit_returns_existing_doc_without_parsing() -> None:
     )
     await docs.create(existing)
 
-    result = await service.prepare(content=b'upload bytes', filename='new.pdf', tags=['hr'])
+    with pytest.raises(DuplicateDocumentError):
+        await service.prepare(content=b'upload bytes', filename='new.pdf', tags=['hr'])
 
-    assert result.id == existing.id
-    assert result.content_hash == raw_hash
     # No expensive work ran — parser wasn't called because hash matched first.
     assert parser.calls == []
     assert ch.calls == []
@@ -212,14 +212,15 @@ async def test_ingest_full_pipeline_composes_prepare_and_finalize() -> None:
     assert all(h.document_name == 'full.txt' for h in hits)
 
 
-async def test_ingest_dedup_skips_finalize() -> None:
+async def test_ingest_dedup_raises_and_skips_finalize() -> None:
     service, _, ch, emb, _, _ = _make_service(embedder=FakeEmbedder(dimension=4))
 
     first = await service.ingest(content=b'same bytes', filename='a.txt', tags=[])
-    second = await service.ingest(content=b'same bytes', filename='b.txt', tags=[])
+    assert first.status == DocumentStatus.ready
 
-    assert second.id == first.id
-    assert second.status == DocumentStatus.ready
+    with pytest.raises(DuplicateDocumentError):
+        await service.ingest(content=b'same bytes', filename='b.txt', tags=[])
+
     # Chunker called only once (first ingest); second was a dedup hit in prepare.
     assert len(ch.calls) == 1
     assert len(emb.calls) == 1
