@@ -39,8 +39,7 @@ src/
     └── in_memory.py     dict-backed DocumentRepository + VectorStore (test doubles, RRF-approximated hybrid ranking)
 tests/                   shared fakes at the root; tiered by the test pyramid (see sdd/specs/testing.md)
 ├── unit/                pure unit tests (no external services, no real adapters)
-├── integration/         real adapters or full HTTP/MCP stack (need config/env)
-└── e2e/                 require a running compose stack (not in CI by default; scripts/run_e2e.sh)
+└── integration/         real adapters or full HTTP/MCP stack (need config/env)
 ```
 
 ## Development

@@ -20,8 +20,9 @@ React SPA for document management, consuming the REST API under `/api/*`. Minima
 
 - **Requirement: Upload with tags** — The UI SHALL provide an upload action (modal) accepting one file and zero or more tags, submitting them to the upload endpoint as multipart form data with comma-separated tags.
   - Scenario: tag chips — GIVEN the tag input, WHEN the user types a tag and confirms, THEN it becomes a removable chip; all chips are submitted comma-separated.
-  - Scenario: success refetches — GIVEN a valid file, WHEN upload returns 200 or 202, THEN the modal closes and the list refetches.
+  - Scenario: success refetches — GIVEN a valid file, WHEN upload returns 202, THEN the modal closes and the list refetches.
   - Scenario: parse error inline — GIVEN a file the backend rejects with 422, WHEN upload fails, THEN the error message is shown inside the modal and the modal stays open.
+  - Scenario: duplicate error inline — GIVEN a file whose content duplicates an existing document, WHEN upload fails with 409, THEN the error message is shown inside the modal and the modal stays open.
 
 ## Delete
 

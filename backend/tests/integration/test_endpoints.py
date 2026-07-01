@@ -115,22 +115,21 @@ class TestUpload:
         assert body['tags'] == ['compliance', 'audit']
         assert 'parsed_text' in body
 
-    def test_dedup_hit_returns_200(self, client: TestClient) -> None:
+    def test_dedup_hit_returns_409(self, client: TestClient) -> None:
         resp1 = client.post(
             '/api/documents/upload',
             files={'file': ('a.pdf', io.BytesIO(b'content'), 'application/pdf')},
             data={'tags': 'compliance'},
         )
         assert resp1.status_code == 202
-        doc_id = resp1.json()['id']
 
         resp2 = client.post(
             '/api/documents/upload',
             files={'file': ('b.pdf', io.BytesIO(b'content'), 'application/pdf')},
             data={'tags': 'compliance'},
         )
-        assert resp2.status_code == 200
-        assert resp2.json()['id'] == doc_id
+        assert resp2.status_code == 409
+        assert 'already exists' in resp2.json()['detail']
 
     def test_no_tags_returns_empty_tags_list(self, client: TestClient) -> None:
         resp = client.post(

@@ -15,8 +15,8 @@ from fastapi import (
 )
 
 from src.core.dependencies import get_document_repository, get_ingestion_service
-from src.core.errors import DocumentNotFoundError, ParseError
-from src.models.document import Document, DocumentStatus
+from src.core.errors import DocumentNotFoundError, DuplicateDocumentError, ParseError
+from src.models.document import Document
 from src.repositories.protocols import DocumentRepository
 from src.schemas import (
     DocumentDetailResponse,
@@ -54,8 +54,8 @@ async def upload_document(
 ) -> Response:
     """Upload a file for ingestion.
 
-    Returns 200 + existing document on dedup hit.
-    Returns 202 + processing document on first upload (background finalize).
+    Returns 202 + processing document on upload (background finalize).
+    Raises 409 if the content is a duplicate of an existing document.
     """
     content = await file.read()
     tags_list = _split_tags(tags)
@@ -72,13 +72,11 @@ async def upload_document(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=str(exc),
         ) from None
-
-    if prepared.status == DocumentStatus.ready:
-        return Response(
-            content=_to_detail(prepared).model_dump_json(),
-            media_type='application/json',
-            status_code=status.HTTP_200_OK,
-        )
+    except DuplicateDocumentError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(exc),
+        ) from None
 
     background_tasks.add_task(service.finalize_safe, prepared.id)
     return Response(

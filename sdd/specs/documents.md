@@ -1,5 +1,5 @@
 - **Requirement: Document identity** — A document SHALL be uniquely identified by a UUID and SHALL carry a content hash computed as SHA-256 of the raw upload bytes (see `ingestion.md`, "Dedup identity").
-  - Scenario: re-upload of identical content — GIVEN a document with raw-byte hash H is already stored, WHEN a second upload with the same raw bytes arrives, THEN no new document is created and the existing document is surfaced.
+  - Scenario: re-upload of identical content — GIVEN a document with raw-byte hash H is already stored, WHEN a second upload with the same raw bytes arrives, THEN no new document is created and a duplicate-document error is raised.
 - **Requirement: Content-hash uniqueness** — The content hash SHALL be unique across all documents; attempting to create a document whose hash matches an existing document SHALL raise a duplicate-document error.
 - **Requirement: Tag storage** — A document SHALL carry a list of zero or more tags stored as normalized (lowercased, trimmed) strings; duplicate tags on a single document SHALL be collapsed.
   - Scenario: tags assigned at upload — GIVEN an upload carrying tags `["Compliance", " compliance "]`, WHEN the document is created, THEN its stored tag list is `["compliance"]`.
@@ -9,5 +9,5 @@
 - **Requirement: Document metadata fields** — A document SHALL persist filename, content-type, size in bytes, parsed full text, content hash, tags, status, error message, chunk count, created_at, and updated_at.
 - **Requirement: Hard delete** — Deleting a document SHALL cascade to the vector store — the service layer, not the repository, SHALL own this coordination. The repository remains responsible only for the relational delete. If vector deletion fails, the Postgres deletion SHALL still proceed and the error SHALL be logged.
 - **Requirement: Upload pipeline** — Upload SHALL call `prepare` synchronously (parse → hash → dedup → create as `processing`) and schedule `finalize` (chunk → embed → upsert → mark `ready`) as a background task.
-- **Requirement: Dedup early-exit** — When content-hash dedup during `prepare` returns an existing `ready` document, upload SHALL return that document immediately without scheduling a background task.
+- **Requirement: Dedup early-exit** — When content-hash dedup during `prepare` finds an existing document, upload SHALL raise a duplicate-document error immediately without scheduling a background task.
 - **Requirement: Zombie cleanup on startup** — On application startup, all documents with `status = processing` SHALL be set to `failed` with error message "Application restart while processing".

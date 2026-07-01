@@ -5,7 +5,7 @@ import hashlib
 import logging
 from uuid import UUID
 
-from src.core.errors import DocumentNotFoundError
+from src.core.errors import DocumentNotFoundError, DuplicateDocumentError
 from src.models.document import Document, DocumentStatus, normalize_tags
 from src.repositories.protocols import (
     MAX_PAGE_SIZE,
@@ -50,7 +50,9 @@ class IngestionService:
 
         existing = await self._documents.get_by_hash(content_hash)
         if existing is not None:
-            return existing
+            raise DuplicateDocumentError(
+                f'document with content_hash {content_hash!r} already exists'
+            )
 
         parsed_text = await self._parser.parse(content, filename)
         document = Document(

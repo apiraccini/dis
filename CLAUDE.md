@@ -7,7 +7,8 @@ Backend infrastructure for a tagged-document knowledge base: a document-manageme
 - After merging a change, update the matching backlog checkbox in the README (root macro task, sub-readme detail).
 - Do the task asked, then stop. Ask before fixing anything unrequested.
 - Never commit. Only propose one-liner conventional commit messages (`feat: ...`, `fix: ...`, `chore: ...`). No body, no multi-line messages. The user does all commits.
-- **Code exploration**: use `codegraph_codegraph_explore` first for architecture, code flow, or symbol questions — it's faster and more accurate than grep/find/read loops. Avoid using subagents.
+- Never use subagents, do the work direclty.
+- **Code exploration**: use `codegraph_codegraph_explore` first for architecture, code flow, or symbol questions — it's faster and more accurate than grep/find/read loops.
 
 ## Quick commands
 - `make lint`: lint backend + frontend
