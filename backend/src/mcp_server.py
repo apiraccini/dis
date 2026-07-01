@@ -67,6 +67,9 @@ class SearchHitResult(BaseModel):
     tags: list[str]
     chunk_index: int
     text: str
+    # Reciprocal Rank Fusion score from combining dense + sparse retrieval, not a raw
+    # cosine similarity — comparable within one search's hits, not across searches or
+    # against a fixed similarity threshold.
     score: float
 
 
@@ -245,8 +248,11 @@ async def search(
 
     This is the primary and default way to retrieve document content — use it for
     every query, whether unfiltered or narrowed by `tags` and/or `document_ids`. Each
-    hit includes its source document, tags, and similarity score. Call `list_tags` or
-    `list_documents` first if you need to discover valid filter values.
+    hit includes its source document, tags, and a relevance score. The score is a
+    fused rank (combining semantic and keyword matching), not a raw similarity value —
+    use it to rank hits within this response, not to compare across separate searches
+    or against a fixed confidence threshold. Call `list_tags` or `list_documents` first
+    if you need to discover valid filter values.
     """
     result = await _search(query, top_k, adapters, tags=tags, document_ids=document_ids)
     return result.to_text()

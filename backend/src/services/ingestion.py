@@ -116,8 +116,6 @@ class IngestionService:
         prepared = await self.prepare(
             content=content, filename=filename, tags=tags, content_type=content_type
         )
-        if prepared.status == DocumentStatus.ready:
-            return prepared
         return await self.finalize(prepared.id)
 
 

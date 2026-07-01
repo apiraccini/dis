@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 import math
+from collections.abc import Iterable
 from datetime import UTC, datetime
 from uuid import UUID
 
@@ -14,6 +15,12 @@ from src.repositories.protocols import ChunkPayload, SearchHit, SparseVector, cl
 _RRF_K = 60
 
 __all__ = ['InMemoryDocumentRepository', 'InMemoryVectorStore']
+
+
+def _stable_order(docs: Iterable[Document]) -> list[Document]:
+    # Deterministic pagination, mirroring SqlModelDocumentRepository: newest
+    # first, id as tie-breaker (created_at is not unique).
+    return sorted(docs, key=lambda d: (d.created_at, str(d.id)), reverse=True)
 
 
 class InMemoryDocumentRepository:
@@ -50,7 +57,9 @@ class InMemoryDocumentRepository:
     ) -> tuple[list[Document], int]:
         offset, limit = clamp_pagination(offset, limit)
         tag_norm = tag.strip().lower() if tag else None
-        matching = [doc for doc in self._store.values() if tag_norm is None or tag_norm in doc.tags]
+        matching = _stable_order(
+            doc for doc in self._store.values() if tag_norm is None or tag_norm in doc.tags
+        )
         total = len(matching)
         page = matching[offset : offset + limit]
         return [copy.deepcopy(d) for d in page], total
@@ -93,7 +102,7 @@ class InMemoryDocumentRepository:
         limit: int = 1000,
     ) -> tuple[list[Document], int]:
         offset, limit = clamp_pagination(offset, limit)
-        matching = [doc for doc in self._store.values() if doc.status == status]
+        matching = _stable_order(doc for doc in self._store.values() if doc.status == status)
         total = len(matching)
         page = matching[offset : offset + limit]
         return [copy.deepcopy(d) for d in page], total
