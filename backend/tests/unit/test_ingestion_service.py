@@ -7,11 +7,14 @@ import pytest
 
 from src.models.document import Document, DocumentStatus
 from src.repositories.in_memory import InMemoryDocumentRepository, InMemoryVectorStore
+from src.repositories.protocols import SparseVector
 from src.services.ingestion import IngestionService
-from src.services.protocols import Embedder
-from tests._fakes import FakeChunker, FakeEmbedder, FakeParser
+from src.services.protocols import Embedder, SparseEmbedder
+from tests._fakes import FakeChunker, FakeEmbedder, FakeParser, FakeSparseEmbedder
 
 PARSED_TEXT = 'alpha bravo charlie delta echo'
+
+_NO_SPARSE = SparseVector(indices=[], values=[])
 
 
 def _hash(text: str) -> str:
@@ -23,6 +26,7 @@ def _make_service[E: Embedder](
     parsed_text: str = PARSED_TEXT,
     chunker: FakeChunker | None = None,
     embedder: E,
+    sparse_embedder: SparseEmbedder | None = None,
 ) -> tuple[
     IngestionService,
     FakeParser,
@@ -39,6 +43,7 @@ def _make_service[E: Embedder](
         parser=parser,
         chunker=ch,
         embedder=embedder,
+        sparse_embedder=sparse_embedder or FakeSparseEmbedder(),
         documents=docs,
         vectors=vectors,
     )
@@ -67,7 +72,7 @@ async def test_prepare_dedup_hit_returns_existing_doc_without_parsing() -> None:
     assert ch.calls == []
     assert emb.calls == []
     # No vectors upserted.
-    assert await vectors.search(query=[1.0], top_k=10) == []
+    assert await vectors.search(query=[1.0], sparse_query=_NO_SPARSE, top_k=10) == []
 
 
 async def test_prepare_dedup_miss_creates_processing_doc_with_raw_byte_hash() -> None:
@@ -107,9 +112,23 @@ async def test_finalize_happy_path_sets_ready_and_chunk_count() -> None:
     assert len(emb.calls[0]) == len(expected_chunks)
     # Vectors stored.
     query_vector = emb.returns[0][0]
-    hits = await vectors.search(query=query_vector, top_k=10)
+    hits = await vectors.search(query=query_vector, sparse_query=_NO_SPARSE, top_k=10)
     assert len(hits) == len(expected_chunks)
     assert all(h.document_id == prepared.id for h in hits)
+
+
+async def test_finalize_computes_sparse_vector_per_chunk() -> None:
+    sparse = FakeSparseEmbedder()
+    service, _, ch, _emb, _docs, _vectors = _make_service(
+        embedder=FakeEmbedder(dimension=4), sparse_embedder=sparse
+    )
+
+    prepared = await service.prepare(content=b'data', filename='doc.txt', tags=['compliance'])
+    await service.finalize(prepared.id)
+
+    expected_chunks = ch.chunk(PARSED_TEXT)
+    assert len(sparse.calls) == 1
+    assert sparse.calls[0] == expected_chunks
 
 
 async def test_finalize_upserts_chunk_records_with_filename_tags_and_indices() -> None:
@@ -123,7 +142,7 @@ async def test_finalize_upserts_chunk_records_with_filename_tags_and_indices() -
     expected_chunks = ch.chunk(PARSED_TEXT)
     expected_vectors = emb.returns[0]
     query_vector = expected_vectors[0]
-    hits = await vectors.search(query=query_vector, top_k=10)
+    hits = await vectors.search(query=query_vector, sparse_query=_NO_SPARSE, top_k=10)
     hits_by_index = {h.chunk_index: h for h in hits}
 
     assert set(hits_by_index) == set(range(len(expected_chunks)))
@@ -152,7 +171,26 @@ async def test_finalize_embedder_failure_raises_and_does_not_upsert() -> None:
     assert doc.status == DocumentStatus.processing
     assert doc.chunk_count == 0
     # No vectors were upserted (upsert is atomic per document).
-    assert await vectors.search(query=[1.0, 0.0, 0.0, 0.0], top_k=10) == []
+    assert await vectors.search(query=[1.0, 0.0, 0.0, 0.0], sparse_query=_NO_SPARSE, top_k=10) == []
+
+
+async def test_finalize_sparse_embedder_failure_raises_and_does_not_upsert() -> None:
+    from tests._failing_embedder import FailingSparseEmbedder
+
+    failing_sparse = FailingSparseEmbedder(exc=RuntimeError('sparse embedder exploded'))
+    service, _, _, _, docs, vectors = _make_service(
+        embedder=FakeEmbedder(dimension=4), sparse_embedder=failing_sparse
+    )
+    prepared = await service.prepare(content=b'data', filename='doc.txt', tags=[])
+
+    with pytest.raises(RuntimeError, match='sparse embedder exploded'):
+        await service.finalize(prepared.id)
+
+    doc = await docs.get_by_id(prepared.id)
+    assert doc is not None
+    assert doc.status == DocumentStatus.processing
+    assert doc.chunk_count == 0
+    assert await vectors.search(query=[1.0, 0.0, 0.0, 0.0], sparse_query=_NO_SPARSE, top_k=10) == []
 
 
 async def test_ingest_full_pipeline_composes_prepare_and_finalize() -> None:
@@ -169,7 +207,7 @@ async def test_ingest_full_pipeline_composes_prepare_and_finalize() -> None:
     assert rows[0].status == DocumentStatus.ready
     # Vectors searchable end-to-end.
     query_vector = emb.returns[0][0]
-    hits = await vectors.search(query=query_vector, top_k=10)
+    hits = await vectors.search(query=query_vector, sparse_query=_NO_SPARSE, top_k=10)
     assert len(hits) == len(expected_chunks)
     assert all(h.document_name == 'full.txt' for h in hits)
 
@@ -192,12 +230,12 @@ async def test_delete_document_removes_from_both_repo_and_vector_store() -> None
 
     prepared = await service.ingest(content=b'one', filename='doc.txt', tags=['compliance'])
     assert await docs.get_by_id(prepared.id) is not None
-    assert await vectors.search(query=[1.0, 0.0, 0.0, 0.0], top_k=10) != []
+    assert await vectors.search(query=[1.0, 0.0, 0.0, 0.0], sparse_query=_NO_SPARSE, top_k=10) != []
 
     await service.delete_document(prepared.id)
 
     assert await docs.get_by_id(prepared.id) is None
-    assert await vectors.search(query=[1.0, 0.0, 0.0, 0.0], top_k=10) == []
+    assert await vectors.search(query=[1.0, 0.0, 0.0, 0.0], sparse_query=_NO_SPARSE, top_k=10) == []
 
 
 async def test_delete_document_raises_on_missing_document() -> None:
@@ -227,7 +265,7 @@ async def test_finalize_from_background_task_catches_exception_and_sets_failed()
     assert failed.status == DocumentStatus.failed
     assert 'embedder exploded' in (failed.error_message or '')
     # No vectors were upserted
-    assert await vectors.search(query=[1.0, 0.0, 0.0, 0.0], top_k=10) == []
+    assert await vectors.search(query=[1.0, 0.0, 0.0, 0.0], sparse_query=_NO_SPARSE, top_k=10) == []
 
 
 async def test_cleanup_zombies_marks_processing_docs_as_failed() -> None:

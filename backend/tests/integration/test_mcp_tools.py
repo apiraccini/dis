@@ -14,7 +14,7 @@ from src.mcp_server import (
 from src.models.document import Document
 from src.repositories.in_memory import InMemoryDocumentRepository, InMemoryVectorStore
 from src.services.factory import Adapters
-from tests._fakes import FakeEmbedder
+from tests._fakes import FakeEmbedder, FakeSparseEmbedder, _word_sparse_vector
 
 pytestmark = pytest.mark.integration
 
@@ -38,6 +38,7 @@ def adapters(vectors: InMemoryVectorStore, fake_embedder: FakeEmbedder) -> Adapt
         chunker=fake_embedder,  # type: ignore
         embedder=fake_embedder,
         query_embedder=fake_embedder,
+        sparse_embedder=FakeSparseEmbedder(),
         vectors=vectors,
     )
 
@@ -89,6 +90,7 @@ async def _seed_vector(
             )
         ],
         [[0.5, 0.5, 0.5, 0.5]],
+        [_word_sparse_vector(text)],
     )
 
 

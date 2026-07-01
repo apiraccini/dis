@@ -71,7 +71,7 @@ sequenceDiagram
 
 ## Stack
 
-- **Vector store → Qdrant** — payload filtering pushdown for tag/document filter (single round-trip). pgvector considered, dedicated store keeps vector concerns out of relational schema.
+- **Vector store → Qdrant** — payload filtering pushdown for tag/document filter (single round-trip). pgvector considered, dedicated store keeps vector concerns out of relational schema. Hybrid search: dense (Qwen3) + sparse (FastEmbed BM25, local) named vectors, fused server-side via Reciprocal Rank Fusion (RRF) — catches exact keyword/domain-term matches that pure dense similarity misses.
 - **Relational store → PostgreSQL 17** via SQLModel/asyncpg — standard, reliable, already in the stack.
 - **Embedding model → Qwen3-Embedding-8B** via OpenRouter (OpenAI-compatible endpoint) — 8B multilingual, 32k ctx, truncated to 1536 dims (40% storage cost, strong retrieval). Asymmetric `input_type` (search_document vs search_query). Non-OpenAI provider through compatible API.
 - **Chunking → semchunk** (semantic, ~1024 tok, no overlap) — splits on topic boundaries. Wrapped behind `Chunker` Protocol, size configurable.
@@ -129,9 +129,8 @@ See `CHANGELOG.md` for v0.1.0.
 
 ### v0.1.1
 
-- [ ] **Hybrid search** - dense + sparse via Qdrant's built-in sparse vectors)
-- [ ] **OCR for scanned PDFs** — extend ingestion with MarkItDown's `markitdown-ocr` extension plus extend documents
-- [ ] **Document summaries** — LLM-generated abstract per document stored in Postgres + Qdrant payload; enrich `list_documents` / `search` hits with summaries; add `summary_match` field or summary-based retrieval
+- [x] **Hybrid search** — dense + sparse (BM25) named vectors fused via RRF.
+- [ ] **OCR for scanned PDFs** — extend ingestion with MarkItDown's `markitdown-ocr` extension plus update example documents
 - [ ] **Evolve MCP tools** — tools to add/modify emerge from the above (e.g. `get_full_document`, enhanced search with summaries). No `delete` tool — KB stays read-only for agents.
 - [ ] **Frontend enhancements**: document detail view, tag filter on list, pagination UI
 

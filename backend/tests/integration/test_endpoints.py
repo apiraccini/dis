@@ -17,7 +17,7 @@ from src.repositories.in_memory import InMemoryDocumentRepository, InMemoryVecto
 from src.repositories.protocols import DocumentRepository
 from src.services.factory import Adapters
 from src.services.ingestion import IngestionService
-from tests._fakes import FakeChunker, FakeEmbedder, FakeParser
+from tests._fakes import FakeChunker, FakeEmbedder, FakeParser, FakeSparseEmbedder
 
 pytestmark = pytest.mark.integration
 
@@ -38,9 +38,15 @@ def _override_dependencies(
     parser = FakeParser(text=PARSED_TEXT)
     chunker = FakeChunker(words_per_chunk=10)
     embedder = FakeEmbedder(dimension=4)
+    sparse_embedder = FakeSparseEmbedder()
 
     adapters = Adapters(
-        parser=parser, chunker=chunker, embedder=embedder, query_embedder=embedder, vectors=vectors
+        parser=parser,
+        chunker=chunker,
+        embedder=embedder,
+        query_embedder=embedder,
+        sparse_embedder=sparse_embedder,
+        vectors=vectors,
     )
 
     async def _get_service() -> AsyncGenerator[IngestionService, None]:
@@ -48,6 +54,7 @@ def _override_dependencies(
             parser=parser,
             chunker=chunker,
             embedder=embedder,
+            sparse_embedder=sparse_embedder,
             documents=docs,
             vectors=vectors,
         )

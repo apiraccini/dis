@@ -9,6 +9,7 @@ from qdrant_client.http import models as qm
 
 from src.repositories.protocols import (
     ChunkPayload,
+    SparseVector,
     VectorStore,
 )
 from src.services.adapters.qdrant_vector_store import QdrantVectorStore
@@ -35,12 +36,16 @@ def _vecs(n: int, dim: int = 4) -> list[list[float]]:
     return [[float(i)] * dim for i in range(n)]
 
 
+def _sparse_vecs(n: int) -> list[SparseVector]:
+    return [SparseVector(indices=[i], values=[1.0]) for i in range(n)]
+
+
 def test_satisfies_vector_store_protocol() -> None:
     store = QdrantVectorStore(client=AsyncMock(), collection='documents')
     assert isinstance(store, VectorStore)
 
 
-async def test_ensure_collection_creates_collection_and_payload_indexes_when_absent() -> None:
+async def test_ensure_collection_creates_named_vectors_and_payload_indexes_when_absent() -> None:
     client = AsyncMock()
     client.collection_exists.return_value = False
 
@@ -49,8 +54,9 @@ async def test_ensure_collection_creates_collection_and_payload_indexes_when_abs
     client.collection_exists.assert_awaited_once_with('documents')
     client.create_collection.assert_awaited_once()
     kwargs = client.create_collection.call_args.kwargs
-    assert kwargs['vectors_config'].size == 1536
-    assert kwargs['vectors_config'].distance == qm.Distance.COSINE
+    assert kwargs['vectors_config']['dense'].size == 1536
+    assert kwargs['vectors_config']['dense'].distance == qm.Distance.COSINE
+    assert 'sparse' in kwargs['sparse_vectors_config']
     # Payload indexes on the two filtered fields (document_id, tags).
     indexed_fields = {c.args[1] for c in client.create_payload_index.call_args_list}
     assert indexed_fields == {'document_id', 'tags'}
@@ -68,11 +74,11 @@ async def test_ensure_collection_idempotent_when_present() -> None:
     client.create_payload_index.assert_not_awaited()
 
 
-async def test_upsert_deletes_existing_then_inserts_with_payload() -> None:
+async def test_upsert_deletes_existing_then_inserts_with_named_vectors_and_payload() -> None:
     client = AsyncMock()
     store = QdrantVectorStore(client=client, collection='documents')
 
-    await store.upsert(DOC_ID, _chunks(2), _vecs(2))
+    await store.upsert(DOC_ID, _chunks(2), _vecs(2), _sparse_vecs(2))
 
     # Delete (clear old chunks) happens before insert.
     assert client.method_calls[0][0] == 'delete'
@@ -81,11 +87,13 @@ async def test_upsert_deletes_existing_then_inserts_with_payload() -> None:
     delete_filter = client.method_calls[0].kwargs['points_selector']
     assert delete_filter.must[0].key == 'document_id'
     assert delete_filter.must[0].match.value == str(DOC_ID)
-    # Upsert carries one point per chunk with full payload + vector.
+    # Upsert carries one point per chunk with both named vectors + full payload.
     points = client.upsert.call_args.kwargs['points']
     assert len(points) == 2
     p0 = points[0]
-    assert p0.vector == [0.0, 0.0, 0.0, 0.0]
+    assert p0.vector['dense'] == [0.0, 0.0, 0.0, 0.0]
+    assert p0.vector['sparse'].indices == [0]
+    assert p0.vector['sparse'].values == [1.0]
     assert p0.payload['document_id'] == str(DOC_ID)
     assert p0.payload['document_name'] == 'report.pdf'
     assert p0.payload['tags'] == ['compliance', 'finance']
@@ -98,9 +106,8 @@ async def test_upsert_deletes_existing_then_inserts_with_payload() -> None:
     ]
 
 
-async def test_search_applies_tags_and_document_id_filters_and_top_k() -> None:
+async def test_search_fuses_dense_and_sparse_prefetch_via_rrf() -> None:
     client = AsyncMock()
-    # Client returns 3 points; adapter maps them to SearchHit and passes limit=top_k.
     client.query_points.return_value = SimpleNamespace(
         points=[
             SimpleNamespace(
@@ -128,9 +135,11 @@ async def test_search_applies_tags_and_document_id_filters_and_top_k() -> None:
         ]
     )
     store = QdrantVectorStore(client=client, collection='documents')
+    sparse_query = SparseVector(indices=[1, 2], values=[0.5, 0.5])
 
     hits = await store.search(
         [0.1] * 4,
+        sparse_query,
         top_k=5,
         tags=['compliance'],
         document_ids=[DOC_ID],
@@ -142,26 +151,33 @@ async def test_search_applies_tags_and_document_id_filters_and_top_k() -> None:
     assert hits[0].document_id == DOC_ID
     assert hits[0].tags == ['compliance']
     assert hits[1].chunk_index == 1
-    # The filter pushed both conditions into the query.
-    flt = client.query_points.call_args.kwargs['query_filter']
-    keys = {c.key for c in flt.must}
-    assert keys == {'tags', 'document_id'}
-    tags_cond = next(c for c in flt.must if c.key == 'tags')
-    assert set(tags_cond.match.any) == {'compliance'}
-    doc_cond = next(c for c in flt.must if c.key == 'document_id')
-    assert doc_cond.match.any == [str(DOC_ID)]
-    # top_k is pushed as the query limit.
-    assert client.query_points.call_args.kwargs['limit'] == 5
+
+    call_kwargs = client.query_points.call_args.kwargs
+    assert isinstance(call_kwargs['query'], qm.FusionQuery)
+    assert call_kwargs['query'].fusion == qm.Fusion.RRF
+    prefetches = call_kwargs['prefetch']
+    assert len(prefetches) == 2
+    dense_pf = next(p for p in prefetches if p.using == 'dense')
+    sparse_pf = next(p for p in prefetches if p.using == 'sparse')
+    assert dense_pf.query == [0.1] * 4
+    assert sparse_pf.query.indices == [1, 2]
+    # The tags/document_ids filter is pushed into both prefetches.
+    for pf in prefetches:
+        keys = {c.key for c in pf.filter.must}
+        assert keys == {'tags', 'document_id'}
+    # top_k is pushed as the final fused query limit.
+    assert call_kwargs['limit'] == 5
 
 
-async def test_search_without_filters_passes_none_filter() -> None:
+async def test_search_without_filters_passes_none_filter_on_prefetches() -> None:
     client = AsyncMock()
     client.query_points.return_value = SimpleNamespace(points=[])
     store = QdrantVectorStore(client=client, collection='documents')
 
-    await store.search([0.1] * 4, top_k=5)
+    await store.search([0.1] * 4, SparseVector(indices=[], values=[]), top_k=5)
 
-    assert client.query_points.call_args.kwargs['query_filter'] is None
+    prefetches = client.query_points.call_args.kwargs['prefetch']
+    assert all(pf.filter is None for pf in prefetches)
 
 
 async def test_delete_by_document_sends_document_id_filter() -> None:

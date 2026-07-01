@@ -10,7 +10,6 @@ from src.services.ingestion import IngestionService
 def test_build_adapters_returns_adapters_with_all_fields() -> None:
     settings = Settings(
         qdrant_url='http://test:6333',
-        qdrant_api_key='test-key',
         qdrant_collection='test-collection',
         openrouter_api_key='sk-test',
         embedding_model='test-model',
@@ -28,26 +27,11 @@ def test_build_adapters_returns_adapters_with_all_fields() -> None:
     assert adapters.chunker is not None
     assert adapters.embedder is not None
     assert adapters.query_embedder is not None
+    assert adapters.sparse_embedder is not None
     assert adapters.vectors is not None
 
     # Verify Qdrant client was constructed with the right args
-    mock_qdrant_cls.assert_called_once_with(url='http://test:6333', api_key='test-key')
-
-
-def test_build_adapters_with_empty_api_key() -> None:
-    settings = Settings(
-        qdrant_url='http://test:6333',
-        qdrant_api_key=None,
-        openrouter_api_key='sk-test',
-    )
-
-    with patch('src.services.factory.AsyncQdrantClient') as mock_qdrant_cls:
-        mock_client = MagicMock()
-        mock_qdrant_cls.return_value = mock_client
-        adapters = build_adapters(settings)
-
-    assert isinstance(adapters, Adapters)
-    mock_qdrant_cls.assert_called_once_with(url='http://test:6333', api_key=None)
+    mock_qdrant_cls.assert_called_once_with(url='http://test:6333')
 
 
 def test_build_adapters_sets_different_input_types() -> None:
@@ -78,6 +62,7 @@ def test_build_ingestion_service_returns_ingestion_service() -> None:
         chunker=MagicMock(),
         embedder=MagicMock(),
         query_embedder=MagicMock(),
+        sparse_embedder=MagicMock(),
         vectors=MagicMock(),
     )
 
@@ -97,6 +82,7 @@ def test_build_ingestion_service_creates_sql_repo_with_session() -> None:
         chunker=MagicMock(),
         embedder=MagicMock(),
         query_embedder=MagicMock(),
+        sparse_embedder=MagicMock(),
         vectors=MagicMock(),
     )
 

@@ -9,12 +9,13 @@ from src.core.config import Settings
 from src.repositories.document_repo import SqlModelDocumentRepository
 from src.repositories.protocols import VectorStore
 from src.services.adapters.fake_embedder import FakeEmbedder
+from src.services.adapters.fastembed_sparse import FastEmbedSparseEmbedder
 from src.services.adapters.markitdown_parser import MarkItDownParser
 from src.services.adapters.openrouter_embedder import OpenRouterEmbedder
 from src.services.adapters.qdrant_vector_store import QdrantVectorStore
 from src.services.adapters.semchunk_chunker import SemchunkChunker
 from src.services.ingestion import IngestionService
-from src.services.protocols import Chunker, Embedder, Parser
+from src.services.protocols import Chunker, Embedder, Parser, SparseEmbedder
 
 __all__ = ['Adapters', 'build_adapters', 'build_ingestion_service']
 
@@ -23,21 +24,24 @@ __all__ = ['Adapters', 'build_adapters', 'build_ingestion_service']
 class Adapters:
     """Startup-constructed singletons for ingestion and search.
 
-    Covers both index-time ingestion (parser, chunker, embedder, vectors) and
-    query-time search (`query_embedder`, configured with the query input_type).
-    The document repository is intentionally NOT here — it is request-scoped
-    (needs an AsyncSession); see `build_ingestion_service`.
+    Covers both index-time ingestion (parser, chunker, embedder, sparse_embedder,
+    vectors) and query-time search (`query_embedder`, configured with the query
+    input_type; `sparse_embedder` is symmetric and shared between index and query
+    time — BM25 has no asymmetric retrieval mode). The document repository is
+    intentionally NOT here — it is request-scoped (needs an AsyncSession); see
+    `build_ingestion_service`.
     """
 
     parser: Parser
     chunker: Chunker
     embedder: Embedder
     query_embedder: Embedder
+    sparse_embedder: SparseEmbedder
     vectors: VectorStore  # concrete: lifespan calls `.provision(dim)`
 
 
 def build_adapters(settings: Settings) -> Adapters:
-    qdrant = AsyncQdrantClient(url=settings.qdrant_url, api_key=settings.qdrant_api_key)
+    qdrant = AsyncQdrantClient(url=settings.qdrant_url)
     vectors = QdrantVectorStore(client=qdrant, collection=settings.qdrant_collection)
 
     parser = MarkItDownParser()
@@ -45,6 +49,7 @@ def build_adapters(settings: Settings) -> Adapters:
         chunk_size=settings.chunk_size_tokens,
         overlap=settings.chunk_overlap_tokens,
     )
+    sparse_embedder = FastEmbedSparseEmbedder()
     if settings.use_fake_embedder:
         embedder: Embedder = FakeEmbedder(dimensions=settings.embedding_dimensions)
         query_embedder: Embedder = embedder
@@ -70,6 +75,7 @@ def build_adapters(settings: Settings) -> Adapters:
         chunker=chunker,
         embedder=embedder,
         query_embedder=query_embedder,
+        sparse_embedder=sparse_embedder,
         vectors=vectors,
     )
 
@@ -81,6 +87,7 @@ def build_ingestion_service(session: AsyncSession, adapters: Adapters) -> Ingest
         parser=adapters.parser,
         chunker=adapters.chunker,
         embedder=adapters.embedder,
+        sparse_embedder=adapters.sparse_embedder,
         documents=documents,
         vectors=adapters.vectors,
     )

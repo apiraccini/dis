@@ -12,6 +12,7 @@ __all__ = [
     'ChunkPayload',
     'DocumentRepository',
     'SearchHit',
+    'SparseVector',
     'VectorStore',
     'clamp_pagination',
 ]
@@ -77,6 +78,14 @@ class DocumentRepository(Protocol):
 
 
 @dataclass(frozen=True)
+class SparseVector:
+    """A lexical (BM25) sparse vector: term indices paired with weights."""
+
+    indices: list[int]
+    values: list[float]
+
+
+@dataclass(frozen=True)
 class ChunkPayload:
     """Payload stored alongside each vector."""
 
@@ -105,8 +114,9 @@ class VectorStore(Protocol):
 
     Contract:
     - `upsert` atomically replaces all chunks for a document.
-    - `search` returns at most `top_k` hits ranked by descending similarity;
-      `tags` (OR) and `document_ids` (membership) are pushed into the query.
+    - `search` fuses dense and sparse retrieval (RRF) and returns at most
+      `top_k` hits; `tags` (OR) and `document_ids` (membership) are pushed
+      into the query.
     """
 
     async def upsert(
@@ -114,6 +124,7 @@ class VectorStore(Protocol):
         document_id: UUID,
         chunks: list[ChunkPayload],
         vectors: list[list[float]],
+        sparse_vectors: list[SparseVector],
     ) -> None: ...
 
     async def delete_by_document(self, document_id: UUID) -> None: ...
@@ -121,6 +132,7 @@ class VectorStore(Protocol):
     async def search(
         self,
         query: list[float],
+        sparse_query: SparseVector,
         top_k: int,
         *,
         tags: list[str] | None = None,

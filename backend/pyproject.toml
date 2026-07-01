@@ -13,6 +13,7 @@ dependencies = [
     "openai",
     "markitdown[pdf,docx,pptx,xlsx]",
     "semchunk",
+    "fastembed",
     "tiktoken",
     "python-multipart",
 ]

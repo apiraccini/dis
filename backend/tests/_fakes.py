@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-__all__ = ['FakeChunker', 'FakeEmbedder', 'FakeParser']
+from src.repositories.protocols import SparseVector
+
+__all__ = ['FakeChunker', 'FakeEmbedder', 'FakeParser', 'FakeSparseEmbedder']
 
 
 class FakeParser:
@@ -66,3 +68,23 @@ class FakeEmbedder:
             vecs.append(raw)
         self.returns.append(vecs)
         return vecs
+
+
+class FakeSparseEmbedder:
+    """Bag-of-words sparse vector: one index per distinct word (hashed), weight 1.0.
+
+    Deterministic and content-based so tests can rely on real lexical overlap
+    between query and chunk text, unlike a purely positional/length-based fake.
+    """
+
+    def __init__(self) -> None:
+        self.calls: list[list[str]] = []
+
+    async def embed(self, texts: list[str]) -> list[SparseVector]:
+        self.calls.append(list(texts))
+        return [_word_sparse_vector(t) for t in texts]
+
+
+def _word_sparse_vector(text: str) -> SparseVector:
+    indices = sorted({hash(w) % 10_000 for w in text.lower().split()})
+    return SparseVector(indices=indices, values=[1.0] * len(indices))

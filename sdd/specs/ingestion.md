@@ -10,8 +10,11 @@
 - **Requirement: Delete-document** — `IngestionService` SHALL expose a `delete_document(document_id)` method that removes the document from both the relational store and the vector store, coordinating the cascade at the service layer.
 - **Requirement: Startup zombie cleanup** — On application startup, all documents with `status = processing` SHALL be set to `failed` with error message "Application restart while processing".
 - **Requirement: Lifecycle ownership** — The service SHALL set status `processing` on creation, status `ready` with `chunk_count` on success, and status `failed` with `error_message` on error.
-- **Requirement: Failure handling** — Any exception during `finalize` SHALL set status `failed` with the error message and SHALL NOT upsert partial vectors (upsert is atomic per document).
+- **Requirement: Failure handling** — Any exception during `finalize` SHALL set status `failed` with the error message and SHALL NOT upsert partial vectors (upsert is atomic per document); this covers dense-embedder, sparse-embedder, and upsert failures.
   - Scenario: embedder fails — GIVEN a document in `processing`, WHEN the embedder raises during `finalize`, THEN the document's status becomes `failed`, its error_message is set, and no vectors are upserted.
+  - Scenario: sparse embedder fails — GIVEN a document in `processing`, WHEN sparse vector generation raises during `finalize`, THEN the document's status becomes `failed`, its error_message is set, and no vectors (dense or sparse) are upserted.
+- **Requirement: Sparse vector generation** — `finalize` SHALL compute a sparse (lexical) vector for each chunk in addition to the dense vector, using the same chunk text, and SHALL pass both to `VectorStore.upsert`.
+  - Scenario: sparse and dense both computed — GIVEN a document with N chunks, WHEN `finalize` runs, THEN N dense vectors and N sparse vectors are produced, one pair per chunk.
 - **Requirement: Chunk count** — The service SHALL set `chunk_count` to the number of chunks produced, after a successful upsert.
 - **Requirement: Parser output** — The parser SHALL accept raw upload bytes plus a filename and SHALL return the document's text as Markdown (headings, tables, lists, links preserved), not raw plain text.
   - Scenario: PDF upload — GIVEN a born-digital PDF upload, WHEN the parser runs, THEN the returned text contains reconstructed Markdown headings and tables rather than a flat text dump.
