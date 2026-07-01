@@ -60,9 +60,19 @@ class SqlModelDocumentRepository:
             stmt = stmt.where(tags_col.any(tag_norm))
         total_result = await self._session.exec(select(func.count()).select_from(stmt.subquery()))
         total = total_result.one()
-        page_result = await self._session.exec(stmt.offset(offset).limit(limit))
+        page_result = await self._session.exec(
+            stmt.order_by(*self._stable_order()).offset(offset).limit(limit)
+        )
         rows = list(page_result.all())
         return rows, total
+
+    @staticmethod
+    def _stable_order():
+        # Deterministic pagination: newest first, id as tie-breaker (created_at
+        # is not unique). Without an ORDER BY, Postgres page order is unspecified
+        # and pages can repeat or skip rows.
+        cols = Document.__table__.c  # ty: ignore[unresolved-attribute]
+        return (cols.created_at.desc(), cols.id.desc())
 
     async def update_status(
         self,
@@ -111,7 +121,9 @@ class SqlModelDocumentRepository:
         stmt = select(Document).where(Document.status == status)
         total_result = await self._session.exec(select(func.count()).select_from(stmt.subquery()))
         total = total_result.one()
-        page_result = await self._session.exec(stmt.offset(offset).limit(limit))
+        page_result = await self._session.exec(
+            stmt.order_by(*self._stable_order()).offset(offset).limit(limit)
+        )
         rows = list(page_result.all())
         return rows, total
 

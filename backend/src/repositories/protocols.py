@@ -33,6 +33,8 @@ class DocumentRepository(Protocol):
     - `get_*` return `None` (not an exception) when nothing matches.
     - `list_documents` returns `(rows, total)` where `total` is the count before pagination.
       `offset`/`limit` are clamped to safe bounds (see `clamp_pagination`).
+    - `list_documents` / `list_by_status` order rows newest-first (`created_at` desc,
+      `id` desc tie-break) so pagination is deterministic.
     """
 
     async def create(self, document: Document) -> Document: ...

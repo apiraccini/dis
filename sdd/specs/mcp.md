@@ -42,8 +42,9 @@
     `tags` (optional list[str], OR semantics), `document_ids` (optional list[str],
     UUID membership)
   - Output: list of `SearchHit` — each with `document_id`, `document_name`, `tags`,
-    `chunk_index`, `text`, `score` (cosine similarity, -1..1, higher = more similar;
-    typically near 0..1 for normalized embeddings)
+    `chunk_index`, `text`, `score` (fused RRF rank score from dense + sparse
+    retrieval, higher = more relevant; comparable within one response only, not
+    across searches or against a fixed similarity threshold)
   - Scenario: unfiltered search — GIVEN chunks with varied content, WHEN `search` is
     called with a query and no filters, THEN hits from all documents are returned
   - Scenario: tag-filtered search — WHEN `search` is called with `tags=["compliance"]`,
@@ -53,25 +54,21 @@
   - Scenario: combined filters — WHEN both `tags` and `document_ids` are specified,
     THEN only chunks matching both filters are returned (intersection)
 
-## Tool: search_by_tag
+## Tools superseded by search: search_by_tag, search_by_document
 
-- **Requirement: search_by_tag tool** — `search_by_tag` SHALL be a convenience wrapper
-  around `search` that passes `tags` directly
-  - Input: `query` (str), `tags` (required list[str], OR semantics), `top_k` (int,
-    default 5, max 50)
-  - Output: same as `search`
-  - Scenario: single tag — GIVEN `tags=["compliance"]`, WHEN `search_by_tag` is called,
-    THEN it behaves identically to `search` with `tags=["compliance"]`
-
-## Tool: search_by_document
-
-- **Requirement: search_by_document tool** — `search_by_document` SHALL be a convenience
-  wrapper around `search` that passes `document_ids` directly
-  - Input: `query` (str), `document_ids` (required list[str], UUID membership),
-    `top_k` (int, default 5, max 50)
-  - Output: same as `search`
-  - Scenario: single document — GIVEN a document UUID, WHEN `search_by_document` is
-    called, THEN only chunks from that document are returned
+- **Requirement: search_by_tag / search_by_document not registered** — `search_by_tag`
+  and `search_by_document` SHALL NOT be registered as separate MCP tools. Their
+  functionality is fully covered by `search`'s `tags` and `document_ids` parameters.
+  Registering them as distinct tools would add tool-choice ambiguity for the calling
+  agent (three near-identical tools competing for the same intent) without adding
+  capability. Reference implementations are kept, commented out, in
+  `backend/src/mcp_server.py` for context.
+  - Scenario: tag-filtered search via `search` — GIVEN `tags=["compliance"]`, WHEN
+    `search` is called with that filter, THEN it returns the same results a dedicated
+    `search_by_tag` tool would have.
+  - Scenario: document-filtered search via `search` — GIVEN a document UUID passed as
+    `document_ids`, WHEN `search` is called with that filter, THEN it returns the same
+    results a dedicated `search_by_document` tool would have.
 
 ## Dependency Injection
 
