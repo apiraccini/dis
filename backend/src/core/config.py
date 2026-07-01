@@ -41,6 +41,10 @@ class Settings(BaseSettings):
     # MCP server auth (Bearer token on the /mcp endpoint)
     mcp_api_key: str = 'dev-mcp-key-change-me'
 
+    # Hard caps enforced at the repository/MCP boundary, shared by REST and MCP callers.
+    max_page_size: int = 500
+    max_search_top_k: int = 50
+
     # CORS for the REST API (frontend origin(s))
     backend_cors_origins: list[str] = ['http://localhost:5173', 'http://localhost:3000']
 

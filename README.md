@@ -4,7 +4,6 @@ Backend infrastructure for a tagged-document knowledge base: a document-manageme
 
 ## Architecture
 
-The system is composed of four Docker services and a layered Python backend:
 
 ### Service topology
 
@@ -129,7 +128,7 @@ See `CHANGELOG.md` for v0.1.0.
 
 - [x] **Hybrid search** — dense + sparse (BM25) named vectors fused via RRF.
 - [x] **OCR for scanned PDFs** — extend ingestion with MarkItDown's `markitdown-ocr` extension plus update example documents
-- [ ] **Evolve MCP tools** — enhance/improve tools.
+- [x] **Evolve MCP tools** — enhance/improve tools.
 
 
 ## Repo layout

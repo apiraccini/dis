@@ -4,13 +4,7 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from src.mcp_server import (
-    list_documents,
-    list_tags,
-    search,
-    search_by_document,
-    search_by_tag,
-)
+from src.mcp_server import _search, list_documents, list_tags, search
 from src.models.document import Document
 from src.repositories.in_memory import InMemoryDocumentRepository, InMemoryVectorStore
 from src.services.factory import Adapters
@@ -99,8 +93,7 @@ async def _seed_vector(
 
 async def test_list_documents_empty(repo: InMemoryDocumentRepository) -> None:
     result = await list_documents(repo=repo)
-    assert result.documents == []
-    assert result.total == 0
+    assert result == 'No documents found.'
 
 
 async def test_list_documents_pagination(repo: InMemoryDocumentRepository) -> None:
@@ -108,12 +101,10 @@ async def test_list_documents_pagination(repo: InMemoryDocumentRepository) -> No
         await _seed_doc(repo, content_hash=f'h{i}')
 
     result = await list_documents(offset=0, limit=2, repo=repo)
-    assert len(result.documents) == 2
-    assert result.total == 3
+    assert '2 document(s) (total 3)' in result
 
     result2 = await list_documents(offset=2, limit=2, repo=repo)
-    assert len(result2.documents) == 1
-    assert result2.total == 3
+    assert '1 document(s) (total 3)' in result2
 
 
 async def test_list_documents_tag_filter(repo: InMemoryDocumentRepository) -> None:
@@ -121,16 +112,17 @@ async def test_list_documents_tag_filter(repo: InMemoryDocumentRepository) -> No
     await _seed_doc(repo, content_hash='h2', tags=['hr'])
 
     result = await list_documents(tag='compliance', repo=repo)
-    assert result.total == 1
-    assert result.documents[0].filename == 'doc.pdf'
-    assert 'compliance' in result.documents[0].tags
+    text = result
+    assert '1 document(s) (total 1)' in text
+    assert 'doc.pdf' in text
+    assert 'compliance' in text
 
 
 async def test_list_documents_limits_at_500(repo: InMemoryDocumentRepository) -> None:
     """The limit caps at 500."""
     result = await list_documents(limit=1000, repo=repo)
     # repo is empty, but no error means cap enforcement works
-    assert result.total == 0
+    assert 'No documents found.' in result
 
 
 # ── list_tags ───────────────────────────────────────────────────────────
@@ -138,7 +130,7 @@ async def test_list_documents_limits_at_500(repo: InMemoryDocumentRepository) ->
 
 async def test_list_tags_empty(repo: InMemoryDocumentRepository) -> None:
     result = await list_tags(repo=repo)
-    assert result.tags == []
+    assert result == 'No tags found.'
 
 
 async def test_list_tags_returns_sorted_unique(repo: InMemoryDocumentRepository) -> None:
@@ -146,7 +138,7 @@ async def test_list_tags_returns_sorted_unique(repo: InMemoryDocumentRepository)
     await _seed_doc(repo, content_hash='h2', tags=['banana', 'apple'])
 
     result = await list_tags(repo=repo)
-    assert result.tags == ['apple', 'banana', 'zebra']
+    assert result == 'apple, banana, zebra'
 
 
 # ── search ──────────────────────────────────────────────────────────────
@@ -158,7 +150,7 @@ async def test_search_no_filters(adapters: Adapters, vectors: InMemoryVectorStor
     did2 = uuid4()
     await _seed_vector(vectors, did2, text='budget review', name='budget.pdf')
 
-    result = await search(query='climate', adapters=adapters)
+    result = await _search('climate', 5, adapters)
     assert len(result.hits) >= 1
 
 
@@ -174,7 +166,7 @@ async def _prep_search(vectors, adapters) -> list[UUID]:
 async def test_search_tag_filter(adapters: Adapters, vectors: InMemoryVectorStore) -> None:
     cid, _hid = await _prep_search(vectors, adapters)
 
-    result = await search(query='rules', tags=['compliance'], adapters=adapters)
+    result = await _search('rules', 5, adapters, tags=['compliance'])
     assert len(result.hits) >= 1
     assert all(h.document_id == str(cid) for h in result.hits)
 
@@ -182,7 +174,7 @@ async def test_search_tag_filter(adapters: Adapters, vectors: InMemoryVectorStor
 async def test_search_document_ids_filter(adapters: Adapters, vectors: InMemoryVectorStore) -> None:
     _cid, hid = await _prep_search(vectors, adapters)
 
-    result = await search(query='policies', document_ids=[str(hid)], adapters=adapters)
+    result = await _search('policies', 5, adapters, document_ids=[str(hid)])
     assert len(result.hits) >= 1
     assert all(h.document_id == str(hid) for h in result.hits)
 
@@ -193,7 +185,7 @@ async def test_search_combined_filters(adapters: Adapters, vectors: InMemoryVect
     await _seed_vector(vectors, cid2, tags=['compliance', 'hr'], text='joint compliance and hr')
 
     # tags=['hr'] AND document_ids=[cid2]
-    result = await search(query='hr', tags=['hr'], document_ids=[str(cid2)], adapters=adapters)
+    result = await _search('hr', 5, adapters, tags=['hr'], document_ids=[str(cid2)])
     assert len(result.hits) >= 1
     assert all(h.document_id == str(cid2) for h in result.hits)
 
@@ -201,39 +193,30 @@ async def test_search_combined_filters(adapters: Adapters, vectors: InMemoryVect
 async def test_search_top_k_default_is_5(adapters: Adapters, vectors: InMemoryVectorStore) -> None:
     for i in range(10):
         await _seed_vector(vectors, uuid4(), text=f'doc {i}')
-    result = await search(query='doc', adapters=adapters)
+    result = await _search('doc', 5, adapters)
     assert len(result.hits) <= 5
 
 
 async def test_search_top_k_caps_at_50(adapters: Adapters, vectors: InMemoryVectorStore) -> None:
     for i in range(60):
         await _seed_vector(vectors, uuid4(), text=f'doc {i}')
-    result = await search(query='doc', top_k=100, adapters=adapters)
+    result = await _search('doc', 100, adapters)
     assert len(result.hits) <= 50
 
 
-# ── search_by_tag ───────────────────────────────────────────────────────
-
-
-async def test_search_by_tag_requires_tags(
+async def test_search_tool_returns_text_only(
     adapters: Adapters, vectors: InMemoryVectorStore
 ) -> None:
-    cid, _hid = await _prep_search(vectors, adapters)
-    result = await search_by_tag(query='rules', tags=['compliance'], adapters=adapters)
-    assert len(result.hits) >= 1
-    assert all(h.document_id == str(cid) for h in result.hits)
+    """search() returns a plain string (compact text, no structured_content),
+    to avoid duplicating (potentially large) chunk text across both fields."""
+    await _seed_vector(vectors, uuid4(), text='climate report')
+
+    result = await search(query='climate', adapters=adapters)
+    assert 'climate report' in result
 
 
-# ── search_by_document ──────────────────────────────────────────────────
-
-
-async def test_search_by_document_requires_ids(
-    adapters: Adapters, vectors: InMemoryVectorStore
-) -> None:
-    _cid, hid = await _prep_search(vectors, adapters)
-    result = await search_by_document(query='policies', document_ids=[str(hid)], adapters=adapters)
-    assert len(result.hits) >= 1
-    assert all(h.document_id == str(hid) for h in result.hits)
+# search_by_tag and search_by_document were removed as separate tools — their
+# behavior is covered by search()'s tags/document_ids filters, tested above.
 
 
 # ── ping removed ────────────────────────────────────────────────────────
@@ -249,5 +232,5 @@ async def test_ping_tool_not_registered() -> None:
     assert 'list_documents' in tool_names
     assert 'list_tags' in tool_names
     assert 'search' in tool_names
-    assert 'search_by_tag' in tool_names
-    assert 'search_by_document' in tool_names
+    assert 'search_by_tag' not in tool_names
+    assert 'search_by_document' not in tool_names

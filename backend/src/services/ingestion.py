@@ -5,14 +5,10 @@ import hashlib
 import logging
 from uuid import UUID
 
+from src.core.config import settings
 from src.core.errors import DocumentNotFoundError, DuplicateDocumentError
 from src.models.document import Document, DocumentStatus, normalize_tags
-from src.repositories.protocols import (
-    MAX_PAGE_SIZE,
-    ChunkPayload,
-    DocumentRepository,
-    VectorStore,
-)
+from src.repositories.protocols import ChunkPayload, DocumentRepository, VectorStore
 from src.services.protocols import Chunker, Embedder, Parser, SparseEmbedder
 
 logger = logging.getLogger(__name__)
@@ -132,13 +128,15 @@ async def cleanup_zombies(documents: DocumentRepository) -> None:
     Called on application startup to clean up documents that were being
     processed when the server was killed.
     """
-    # Page through all zombies: list_by_status clamps limit to MAX_PAGE_SIZE, and
+    # Page through all zombies: list_by_status clamps limit to settings.max_page_size, and
     # marking a doc 'failed' removes it from the 'processing' set, so re-query from
     # offset 0 each round until the set is empty.
     msg = 'Application restart while processing'
     cleaned = 0
     while True:
-        rows, _ = await documents.list_by_status(DocumentStatus.processing, limit=MAX_PAGE_SIZE)
+        rows, _ = await documents.list_by_status(
+            DocumentStatus.processing, limit=settings.max_page_size
+        )
         if not rows:
             break
         for doc in rows:
