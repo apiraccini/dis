@@ -7,6 +7,7 @@ FastAPI app serving the REST API, ingestion pipeline, and MCP server (the core o
 - Qdrant (qdrant-client) for vectors + payload filtering
 - FastMCP (`fastmcp`) for the MCP server, mounted at `/mcp`
 - markitdown (parser), semchunk (chunker), OpenRouter via `openai` SDK (Qwen3-embedding-8b dense embedder), FastEmbed (BM25 sparse embedder, local), Qdrant (vector store, hybrid dense+sparse via RRF)
+- Optional VLM-assisted parsing (`markitdown-ocr` plugin, `google/gemini-3.1-flash-lite` via OpenRouter) gated by `USE_VLM` (default off), model configurable via `VLM_MODEL`
 - uv, ruff, ty, pytest
 
 ## Tree

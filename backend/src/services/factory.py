@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from openai import OpenAI
 from qdrant_client import AsyncQdrantClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -44,7 +45,13 @@ def build_adapters(settings: Settings) -> Adapters:
     qdrant = AsyncQdrantClient(url=settings.qdrant_url)
     vectors = QdrantVectorStore(client=qdrant, collection=settings.qdrant_collection)
 
-    parser = MarkItDownParser()
+    if settings.use_vlm:
+        vlm_client = OpenAI(
+            api_key=settings.openrouter_api_key, base_url=settings.embedding_base_url
+        )
+        parser = MarkItDownParser(use_vlm=True, llm_client=vlm_client, llm_model=settings.vlm_model)
+    else:
+        parser = MarkItDownParser()
     chunker = SemchunkChunker(
         chunk_size=settings.chunk_size_tokens,
         overlap=settings.chunk_overlap_tokens,

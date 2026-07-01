@@ -28,3 +28,6 @@
 - **Requirement: Embedding batching** — The embedder SHALL batch input texts up to a configurable batch size and SHALL concatenate the results in input order, so callers may pass any number of texts.
   - Scenario: batch boundary — GIVEN 70 texts and a batch size of 64, WHEN embed runs, THEN two provider calls occur (64 then 6) and 70 vectors return in original order.
 - **Requirement: Embedder error surfacing** — The embedder SHALL raise a domain embedding error (wrapping provider errors) so the ingestion failure path records a stable message.
+- **Requirement: VLM-assisted parsing** — When `USE_VLM` is enabled, the parser SHALL construct MarkItDown with plugins enabled and an OpenRouter-backed vision LLM client, so image-only/scanned pages produce extracted text instead of empty output.
+  - Scenario: scanned PDF with VLM on — GIVEN `USE_VLM=true` and a PDF whose pages are image-only (no text layer), WHEN the parser runs, THEN it returns non-empty Markdown text derived from the page images rather than raising "produced no text".
+  - Scenario: VLM off preserves current behavior — GIVEN `USE_VLM=false` (default), WHEN any document is parsed, THEN MarkItDown runs without plugins or an LLM client, identical to pre-VLM behavior.

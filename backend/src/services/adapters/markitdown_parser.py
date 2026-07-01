@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import io
 import os
+from typing import Any
 
 from markitdown import MarkItDown, MarkItDownException, UnsupportedFormatException
 
@@ -33,8 +34,16 @@ _SUPPORTED_EXTENSIONS: frozenset[str] = frozenset(
 class MarkItDownParser:
     """Parser backed by MarkItDown — converts uploads to Markdown text."""
 
-    def __init__(self) -> None:
-        self._md = MarkItDown()
+    def __init__(
+        self,
+        use_vlm: bool = False,
+        llm_client: Any | None = None,
+        llm_model: str | None = None,
+    ) -> None:
+        if use_vlm:
+            self._md = MarkItDown(enable_plugins=True, llm_client=llm_client, llm_model=llm_model)
+        else:
+            self._md = MarkItDown()
 
     async def parse(self, content: bytes, filename: str) -> str:
         ext = os.path.splitext(filename)[1].lower()

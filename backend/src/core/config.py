@@ -33,6 +33,11 @@ class Settings(BaseSettings):
     # When true, ingestion uses a deterministic in-process fake embedder (e2e only).
     use_fake_embedder: bool = False
 
+    # When true, the parser enables MarkItDown's markitdown-ocr plugin with a
+    # vision-LLM client (via OpenRouter) so scanned/image-only pages extract text.
+    use_vlm: bool = False
+    vlm_model: str = 'google/gemini-3.1-flash-lite'
+
     # MCP server auth (Bearer token on the /mcp endpoint)
     mcp_api_key: str = 'dev-mcp-key-change-me'
 
