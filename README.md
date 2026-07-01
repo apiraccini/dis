@@ -2,7 +2,7 @@
 
 Backend infrastructure for a tagged-document knowledge base: a document-management web UI, an ingestion pipeline (parse → chunk → embed → store), and an **MCP server** exposing the knowledge base as agent-ready tools over Streamable HTTP.
 
-> **State: v0.1.0 candidate — all core backend functionality + MCP tools tested.** The harness (lint, tests, Docker, CI, MCP endpoint wiring, auth) is green, the data models + repositories are in, the ingestion pipeline runs end-to-end with real adapters, the document-management REST API is operational (upload, list, get-by-id, delete, tags), and five MCP knowledge-base tools (`list_documents`, `list_tags`, `search`, `search_by_tag`, `search_by_document`) are registered and verified end-to-end via the live compose stack with all payload variants (pagination, tag/doc filters, combined filters, empty/edge cases). Example data (7 documents in 5 formats) and ingestion scripts are ready. **Frontend UI is the next task** — once done, tag v0.1.0.
+> **State: v0.1.0.** See `CHANGELOG.md` for what shipped.
 
 ## Architecture
 
@@ -111,7 +111,6 @@ To regenerate the PDF/DOCX variants from source markdown (the .md/.txt/.html fil
 ```bash
 bash scripts/convert_data.sh   # requires pandoc + weasyprint
 ```
-```
 
 ## Connecting an MCP client
 
@@ -126,31 +125,13 @@ MCP clients connect to `/mcp` and the SDK handles the protocol; raw HTTP probes 
 
 ## Backlog
 
-### v0.1.0
+See `CHANGELOG.md` for v0.1.0.
 
-*Backend*
+### v0.1.1
 
-- [x] Data models + repositories (Document [parsed content + content-hash dedup], Tag, DocumentTag many-to-many link; SQLModel tables + Protocol-based repos; no Chunk table — chunks live in Qdrant)  _(done with a revision: tags stored as a Postgres `text[]` column on Document instead of a Tag/DocumentTag link — see `sdd/specs/documents.md`)_
-- [x] Ingestion pipeline (markitdown parser, semchunk chunker, OpenRouter embedder; standalone services storing chunk text + embedding + payload in Qdrant, parsed content + metadata in Postgres)  _(done: `IngestionService` two-phase prepare/finalize + `VectorStore` Protocol; concrete adapters — `MarkItDownParser`, `SemchunkChunker`, `OpenRouterEmbedder`, `QdrantVectorStore` — implemented behind their Protocols, unit-tested, and verified end-to-end via a live compose smoke; Qdrant collection auto-provisioned on startup with cosine distance + payload indexes on `document_id`/`tags`; two pre-existing bugs fixed during integration — `db.py` session type and `Document` timestamp columns — see `sdd/specs/ingestion.md` + `vectors.md`)_
-- [x] Document management REST API (upload → triggers async ingestion, list, get-by-id, delete → cascades to Qdrant; dedup via content hash; tags endpoint)
-- [x] MCP tools (`list_documents`, `list_tags`, `search`, `search_by_tag`, `search_by_document`) — query-time embedding via `adapters.query_embedder`, FastMCP `Depends()` DI, five tools registered on the FastMCP instance; see `sdd/specs/mcp.md`
-
-*Data & Scripts*
-
-- [x] Example documents in `data/` (7 files: md, pdf, html, docx, txt — covers all parser formats)
-- [x] `scripts/convert_data.sh` — generate PDF/DOCX from source markdown (requires pandoc + weasyprint)
-- [x] `scripts/ingest_data.sh` — POST all example docs to a running stack
-
-*Frontend*
-
-- [x] Document management UI (upload + tag, list, delete) — minimal but functional; plain fetch + hooks, Tailwind, poll while processing; see `frontend/README.md`
-
-
-### v0.1.1 (out of scope for now)
-
-- [ ] **Hybrid search** (dense + sparse via Qdrant's built-in sparse vectors) — fuse at query time for better recall on keywords, codes, and acronyms
+- [ ] **Hybrid search** - dense + sparse via Qdrant's built-in sparse vectors)
+- [ ] **OCR for scanned PDFs** — extend ingestion with MarkItDown's `markitdown-ocr` extension plus extend documents
 - [ ] **Document summaries** — LLM-generated abstract per document stored in Postgres + Qdrant payload; enrich `list_documents` / `search` hits with summaries; add `summary_match` field or summary-based retrieval
-- [ ] **OCR for scanned PDFs** — extend ingestion with MarkItDown's `--use-docling` mode or direct Docling integration (plus tests with a scanned-image sample doc)
 - [ ] **Evolve MCP tools** — tools to add/modify emerge from the above (e.g. `get_full_document`, enhanced search with summaries). No `delete` tool — KB stays read-only for agents.
 - [ ] **Frontend enhancements**: document detail view, tag filter on list, pagination UI
 
