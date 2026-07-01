@@ -45,13 +45,24 @@ services:
       watch:
         - action: rebuild
           path: ./backend/src
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
   frontend:
     build: ./frontend
     ports:
       - "3000:80"
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:80"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
 volumes:
   db_data:

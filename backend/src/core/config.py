@@ -28,7 +28,7 @@ class Settings(BaseSettings):
 
     # Chunking (semchunk, token-based).
     chunk_size_tokens: int = 1024
-    chunk_overlap_tokens: int = 0
+    chunk_overlap_tokens: int = 100
 
     # When true, ingestion uses a deterministic in-process fake embedder (e2e only).
     use_fake_embedder: bool = False

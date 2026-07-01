@@ -9,8 +9,8 @@ from fastapi.testclient import TestClient
 
 from src.core.dependencies import (
     get_adapters,
-    get_document_repository,
     get_ingestion_service,
+    get_request_document_repo,
 )
 from src.models.document import Document
 from src.repositories.in_memory import InMemoryDocumentRepository, InMemoryVectorStore
@@ -65,7 +65,7 @@ def _override_dependencies(
 
     app.dependency_overrides[get_adapters] = lambda: adapters
     app.dependency_overrides[get_ingestion_service] = _get_service
-    app.dependency_overrides[get_document_repository] = _get_docs
+    app.dependency_overrides[get_request_document_repo] = _get_docs
 
 
 @pytest.fixture(autouse=True)

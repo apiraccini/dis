@@ -100,11 +100,10 @@ class IngestionService:
                 )
 
     async def delete_document(self, document_id: UUID) -> None:
+        # Vectors first: if this fails, the SQL row (source of truth for list/search
+        # filtering) stays intact and the delete is safely retryable.
+        await self._vectors.delete_by_document(document_id)
         await self._documents.delete(document_id)
-        try:
-            await self._vectors.delete_by_document(document_id)
-        except Exception:
-            logger.exception('vector deletion failed for document %s', document_id)
 
     async def ingest(
         self,

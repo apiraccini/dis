@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 
 from src.core.config import settings
 from src.core.dependencies import get_adapters, get_document_repo
+from src.core.errors import DocumentNotFoundError, EmbeddingError, ParseError
 from src.core.security import build_mcp_auth
 from src.repositories.protocols import DocumentRepository, SearchHit
 from src.services.factory import Adapters
@@ -85,6 +86,22 @@ class SearchResult(BaseModel):
         return '\n\n'.join(lines)
 
 
+# ── Error translation ───────────────────────────────────────────────────
+
+# Domain exceptions that a tool call can surface to the calling agent as a
+# clean message, instead of an unhandled stack trace. Anything not listed
+# here is an unexpected server error and is left to propagate.
+_AGENT_FACING_ERRORS: tuple[type[Exception], ...] = (
+    DocumentNotFoundError,
+    ParseError,
+    EmbeddingError,
+)
+
+
+def _reraise_as_tool_error(exc: Exception) -> ToolError:
+    return ToolError(f'{type(exc).__name__}: {exc}')
+
+
 # ── Tools ───────────────────────────────────────────────────────────────
 
 
@@ -113,7 +130,10 @@ async def list_documents(
     `search` with a `document_ids` or `tags` filter. Does not return document content —
     use `search` for that.
     """
-    rows, total = await repo.list_documents(offset=offset, limit=limit, tag=tag)
+    try:
+        rows, total = await repo.list_documents(offset=offset, limit=limit, tag=tag)
+    except _AGENT_FACING_ERRORS as exc:
+        raise _reraise_as_tool_error(exc) from exc
     result = ListDocumentsResult(
         documents=[
             DocumentSummary(
@@ -139,7 +159,11 @@ async def list_tags(
 
     Use this to discover valid tag values before calling `search` with a `tags` filter.
     """
-    result = ListTagsResult(tags=await list_tags_service(repo))
+    try:
+        tags = await list_tags_service(repo)
+    except _AGENT_FACING_ERRORS as exc:
+        raise _reraise_as_tool_error(exc) from exc
+    result = ListTagsResult(tags=tags)
     return result.to_text()
 
 
@@ -158,15 +182,18 @@ async def _search(
         except ValueError as exc:
             raise ToolError(f'invalid document id: {exc}') from exc
 
-    [vector] = await adapters.query_embedder.embed([query])
-    [sparse_vector] = await adapters.sparse_embedder.embed([query])
-    hits: list[SearchHit] = await adapters.vectors.search(
-        query=vector,
-        sparse_query=sparse_vector,
-        top_k=top_k,
-        tags=tags,
-        document_ids=ids,
-    )
+    try:
+        [vector] = await adapters.query_embedder.embed([query])
+        [sparse_vector] = await adapters.sparse_embedder.embed([query])
+        hits: list[SearchHit] = await adapters.vectors.search(
+            query=vector,
+            sparse_query=sparse_vector,
+            top_k=top_k,
+            tags=tags,
+            document_ids=ids,
+        )
+    except _AGENT_FACING_ERRORS as exc:
+        raise _reraise_as_tool_error(exc) from exc
     return SearchResult(
         hits=[
             SearchHitResult(

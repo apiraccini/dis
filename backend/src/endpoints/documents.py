@@ -14,7 +14,7 @@ from fastapi import (
     status,
 )
 
-from src.core.dependencies import get_document_repository, get_ingestion_service
+from src.core.dependencies import get_ingestion_service, get_request_document_repo
 from src.core.errors import DocumentNotFoundError, DuplicateDocumentError, ParseError
 from src.models.document import Document
 from src.repositories.protocols import DocumentRepository
@@ -28,7 +28,7 @@ from src.services.ingestion import IngestionService
 router = APIRouter(prefix='/api/documents', tags=['documents'])
 
 IngestionServiceDep = Annotated[IngestionService, Depends(get_ingestion_service)]
-DocumentRepoDep = Annotated[DocumentRepository, Depends(get_document_repository)]
+DocumentRepoDep = Annotated[DocumentRepository, Depends(get_request_document_repo)]
 
 
 def _split_tags(tags_str: str | None) -> list[str]:

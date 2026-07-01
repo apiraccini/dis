@@ -71,7 +71,7 @@ sequenceDiagram
 - **Vector store → Qdrant** — payload filtering pushdown for tag/document filter (single round-trip). pgvector considered, dedicated store keeps vector concerns out of relational schema. Hybrid search: dense (Qwen3) + sparse (FastEmbed BM25, local) named vectors, fused server-side via Reciprocal Rank Fusion (RRF) — catches exact keyword/domain-term matches that pure dense similarity misses.
 - **Relational store → PostgreSQL 17** via SQLModel/asyncpg — standard, reliable, already in the stack.
 - **Embedding model → Qwen3-Embedding-8B** via OpenRouter (OpenAI-compatible endpoint) — 8B multilingual, 32k ctx, truncated to 1536 dims (40% storage cost, strong retrieval). Asymmetric `input_type` (search_document vs search_query). Non-OpenAI provider through compatible API.
-- **Chunking → semchunk** (semantic, ~1024 tok, no overlap) — splits on topic boundaries. Wrapped behind `Chunker` Protocol, size configurable.
+- **Chunking → semchunk** (semantic, ~1024 tok, 5% overlap) — splits on topic boundaries; a small overlap guards against context loss for content split right at a boundary. Wrapped behind `Chunker` Protocol, size/overlap configurable.
 - **Parsing → markitdown** — Markdown-first converter (PDF + Office + plain text). Pure-Python deps, no system packages. Wrapped behind `Parser` Protocol.
 - **MCP transport → Streamable HTTP** via FastMCP — stateless, no session affinity.
 - **MCP SDK → fastmcp** — cleaner mounting API than mcp SDK's built-in server.
@@ -118,7 +118,15 @@ URL:    http://localhost:8000/mcp
 Header: Authorization: Bearer <MCP_API_KEY>   # dev default: dev-mcp-key-change-me
 ```
 
-MCP clients connect to `/mcp` and the SDK handles the protocol; raw HTTP probes must POST to `/mcp/` (trailing slash) — a GET on `/mcp` returns a 307 redirect. Auth is enforced on the JSON-RPC endpoint: a request without the token gets `401`. Five tools are registered: `list_documents`, `list_tags`, `search`, `search_by_tag`, `search_by_document`.
+MCP clients connect to `/mcp` and the SDK handles the protocol; raw HTTP probes must POST to `/mcp/` (trailing slash) — a GET on `/mcp` returns a 307 redirect. Auth is enforced on the JSON-RPC endpoint: a request without the token gets `401`. Three tools are registered: `list_documents`, `list_tags`, `search`. `search_by_tag`/`search_by_document` are folded into `search`'s `tags`/`document_ids` filters rather than kept as separate tools, to avoid tool-choice ambiguity for the calling agent.
+
+## Known limitations & future improvements
+
+TODO
+
+## Part 1 — Written answers
+
+TODO
 
 ## Backlog
 

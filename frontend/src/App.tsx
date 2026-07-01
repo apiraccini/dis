@@ -8,11 +8,17 @@ import { useDocuments } from './useDocuments'
 function App() {
   const { documents, loading, error, refetch } = useDocuments()
   const [showUpload, setShowUpload] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
 
   const handleDelete = async (doc: DocumentResponse) => {
     if (!window.confirm(`Delete "${doc.filename}"?`)) return
-    await deleteDocument(doc.id)
-    await refetch()
+    setDeleteError(null)
+    try {
+      await deleteDocument(doc.id)
+      await refetch()
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : 'Failed to delete document.')
+    }
   }
 
   return (
@@ -30,6 +36,12 @@ function App() {
           Upload
         </button>
       </header>
+
+      {deleteError && (
+        <p className="mb-4 rounded border border-red-800 bg-red-950 px-4 py-2 text-sm text-red-300">
+          {deleteError}
+        </p>
+      )}
 
       <div className="rounded-lg border border-gray-800">
         <DocumentTable
