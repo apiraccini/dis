@@ -14,6 +14,7 @@ def _make_adapters() -> Adapters:
         chunker=MagicMock(),
         embedder=MagicMock(),
         query_embedder=MagicMock(),
+        sparse_embedder=MagicMock(),
         vectors=MagicMock(),
     )
 

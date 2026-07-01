@@ -7,7 +7,11 @@ from uuid import UUID
 
 from src.core.errors import DocumentNotFoundError, DuplicateDocumentError
 from src.models.document import Document, DocumentStatus, normalize_tags
-from src.repositories.protocols import ChunkPayload, SearchHit, clamp_pagination
+from src.repositories.protocols import ChunkPayload, SearchHit, SparseVector, clamp_pagination
+
+# RRF constant (k), matching Qdrant's default — dampens the impact of rank 1
+# so a single method's top hit doesn't dominate the fused ranking.
+_RRF_K = 60
 
 __all__ = ['InMemoryDocumentRepository', 'InMemoryVectorStore']
 
@@ -104,24 +108,29 @@ class InMemoryDocumentRepository:
 class InMemoryVectorStore:
     """Dict-backed async vector store (canonical test double).
 
-    Cosine similarity over stored vectors; tag/document_id filters applied
-    in-memory to mirror the filter pushdown a Qdrant implementation will do.
+    Approximates Qdrant's hybrid search: ranks candidates separately by dense
+    cosine similarity and by sparse (lexical) dot-product overlap, then fuses
+    both rankings via Reciprocal Rank Fusion (RRF). Tag/document_id filters
+    are applied in-memory to mirror the filter pushdown a Qdrant
+    implementation will do.
     """
 
     def __init__(self) -> None:
-        self._vectors: dict[UUID, list[tuple[ChunkPayload, list[float]]]] = {}
+        self._vectors: dict[UUID, list[tuple[ChunkPayload, list[float], SparseVector]]] = {}
 
     async def upsert(
         self,
         document_id: UUID,
         chunks: list[ChunkPayload],
         vectors: list[list[float]],
+        sparse_vectors: list[SparseVector],
     ) -> None:
-        if len(chunks) != len(vectors):
-            raise ValueError('chunks and vectors must have equal length')
+        if not (len(chunks) == len(vectors) == len(sparse_vectors)):
+            raise ValueError('chunks, vectors, and sparse_vectors must have equal length')
         # Atomic replace: re-ingestion overwrites prior chunks for the document.
         self._vectors[document_id] = [
-            (copy.deepcopy(c), list(v)) for c, v in zip(chunks, vectors, strict=True)
+            (copy.deepcopy(c), list(v), s)
+            for c, v, s in zip(chunks, vectors, sparse_vectors, strict=True)
         ]
 
     async def delete_by_document(self, document_id: UUID) -> None:
@@ -133,6 +142,7 @@ class InMemoryVectorStore:
     async def search(
         self,
         query: list[float],
+        sparse_query: SparseVector,
         top_k: int,
         *,
         tags: list[str] | None = None,
@@ -141,28 +151,38 @@ class InMemoryVectorStore:
         tags_norm = {t.strip().lower() for t in tags} if tags else None
         ids_norm = set(document_ids) if document_ids else None
 
-        scored: list[SearchHit] = []
+        candidates: list[tuple[UUID, ChunkPayload, float, float]] = []
         for doc_id, entries in self._vectors.items():
             if ids_norm is not None and doc_id not in ids_norm:
                 continue
-            for chunk, vec in entries:
+            for chunk, vec, sparse in entries:
                 if tags_norm is not None and not (
                     tags_norm & {t.strip().lower() for t in chunk.tags}
                 ):
                     continue
-                score = _cosine(query, vec)
-                scored.append(
-                    SearchHit(
-                        document_id=doc_id,
-                        document_name=chunk.document_name,
-                        tags=list(chunk.tags),
-                        chunk_index=chunk.chunk_index,
-                        text=chunk.text,
-                        score=score,
-                    )
-                )
-        scored.sort(key=lambda h: h.score, reverse=True)
-        return scored[:top_k]
+                dense_score = _cosine(query, vec)
+                sparse_score = _sparse_dot(sparse_query, sparse)
+                candidates.append((doc_id, chunk, dense_score, sparse_score))
+
+        dense_rank = _ranks(candidates, key=lambda c: c[2])
+        sparse_rank = _ranks(candidates, key=lambda c: c[3])
+
+        def rrf_score(i: int) -> float:
+            return 1 / (_RRF_K + dense_rank[i]) + 1 / (_RRF_K + sparse_rank[i])
+
+        ranked = sorted(range(len(candidates)), key=rrf_score, reverse=True)
+        hits = [
+            SearchHit(
+                document_id=candidates[i][0],
+                document_name=candidates[i][1].document_name,
+                tags=list(candidates[i][1].tags),
+                chunk_index=candidates[i][1].chunk_index,
+                text=candidates[i][1].text,
+                score=rrf_score(i),
+            )
+            for i in ranked
+        ]
+        return hits[:top_k]
 
 
 def _cosine(a: list[float], b: list[float]) -> float:
@@ -172,3 +192,26 @@ def _cosine(a: list[float], b: list[float]) -> float:
     if na == 0 or nb == 0:
         return 0.0
     return dot / (na * nb)
+
+
+def _sparse_dot(a: SparseVector, b: SparseVector) -> float:
+    b_map = dict(zip(b.indices, b.values, strict=True))
+    return sum(v * b_map.get(i, 0.0) for i, v in zip(a.indices, a.values, strict=True))
+
+
+def _ranks(candidates: list, key) -> dict[int, float]:
+    """Dense-rank candidates by `key` descending; equal scores share the same rank.
+
+    Sharing ranks on ties avoids letting an incidental stable-sort order (e.g.
+    when every score is 0.0, as with an empty sparse query) masquerade as a
+    real signal in the RRF fusion.
+    """
+    scores = [key(c) for c in candidates]
+    order = sorted(range(len(candidates)), key=lambda i: scores[i], reverse=True)
+    ranks: dict[int, float] = {}
+    rank = 0
+    for pos, i in enumerate(order):
+        if pos > 0 and scores[i] != scores[order[pos - 1]]:
+            rank = pos
+        ranks[i] = rank
+    return ranks

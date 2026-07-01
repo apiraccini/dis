@@ -13,7 +13,7 @@ from src.repositories.protocols import (
     DocumentRepository,
     VectorStore,
 )
-from src.services.protocols import Chunker, Embedder, Parser
+from src.services.protocols import Chunker, Embedder, Parser, SparseEmbedder
 
 logger = logging.getLogger(__name__)
 
@@ -27,12 +27,14 @@ class IngestionService:
         parser: Parser,
         chunker: Chunker,
         embedder: Embedder,
+        sparse_embedder: SparseEmbedder,
         documents: DocumentRepository,
         vectors: VectorStore,
     ) -> None:
         self._parser = parser
         self._chunker = chunker
         self._embedder = embedder
+        self._sparse_embedder = sparse_embedder
         self._documents = documents
         self._vectors = vectors
 
@@ -69,6 +71,7 @@ class IngestionService:
 
         chunks = self._chunker.chunk(document.parsed_text)
         vectors = await self._embedder.embed(chunks)
+        sparse_vectors = await self._sparse_embedder.embed(chunks)
         records = [
             ChunkPayload(
                 document_id=document.id,
@@ -79,7 +82,7 @@ class IngestionService:
             )
             for i, chunk in enumerate(chunks)
         ]
-        await self._vectors.upsert(document.id, records, vectors)
+        await self._vectors.upsert(document.id, records, vectors, sparse_vectors)
         await self._documents.update_chunk_count(document_id, len(chunks))
         return await self._documents.update_status(document_id, DocumentStatus.ready)
 

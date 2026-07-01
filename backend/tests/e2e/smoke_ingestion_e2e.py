@@ -6,9 +6,9 @@ Run:
         uv run python -m tests.e2e.smoke_ingestion_e2e
 
 Feeds a tiny born-digital PDF through the real MarkItDownParser → SemchunkChunker
-→ OpenRouterEmbedder (Qwen3-embedding-8b) → QdrantVectorStore + SqlModelDocumentRepository,
-then verifies the Document is `ready`, chunk_count > 0, and a semantic search
-returns the ingested chunk.
+→ OpenRouterEmbedder (Qwen3-embedding-8b) + FastEmbedSparseEmbedder (BM25) →
+QdrantVectorStore + SqlModelDocumentRepository, then verifies the Document is
+`ready`, chunk_count > 0, and a hybrid search returns the ingested chunk.
 """
 
 from __future__ import annotations
@@ -25,6 +25,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from src.core.config import settings
 from src.repositories.document_repo import SqlModelDocumentRepository
+from src.services.adapters.fastembed_sparse import FastEmbedSparseEmbedder
 from src.services.adapters.markitdown_parser import MarkItDownParser
 from src.services.adapters.openrouter_embedder import OpenRouterEmbedder
 from src.services.adapters.qdrant_vector_store import QdrantVectorStore
@@ -103,6 +104,7 @@ async def main() -> None:
             base_url=settings.embedding_base_url, api_key=settings.openrouter_api_key
         ),
     )
+    sparse_embedder = FastEmbedSparseEmbedder()
 
     async with sessionmaker() as session:
         documents = SqlModelDocumentRepository(session)
@@ -110,6 +112,7 @@ async def main() -> None:
             parser=parser,
             chunker=chunker,
             embedder=embedder,
+            sparse_embedder=sparse_embedder,
             documents=documents,
             vectors=vectors,
         )
@@ -147,16 +150,17 @@ async def main() -> None:
         ),
     )
     qv = await query_embedder.embed(['year over year revenue growth'])
-    hits = await vectors.search(qv[0], top_k=5, tags=['finance'])
+    qsv = await sparse_embedder.embed(['year over year revenue growth'])
+    hits = await vectors.search(qv[0], qsv[0], top_k=5, tags=['finance'])
     assert hits, 'expected at least one search hit'
     assert any('revenue' in h.text.lower() for h in hits), (
         f'no revenue hit: {[h.text for h in hits]}'
     )
-    print(f'  [ok] semantic search: {len(hits)} hit(s), top score={hits[0].score:.4f}')
+    print(f'  [ok] hybrid search: {len(hits)} hit(s), top score={hits[0].score:.4f}')
     print(f'       top hit: {hits[0].text[:60]!r} (chunk {hits[0].chunk_index})')
 
     # 4. Filter pushdown by document_id.
-    hits_doc = await vectors.search(qv[0], top_k=5, document_ids=[doc.id])
+    hits_doc = await vectors.search(qv[0], qsv[0], top_k=5, document_ids=[doc.id])
     assert hits_doc, 'document_id filter should match the ingested doc'
     print(f'  [ok] document_id filter: {len(hits_doc)} hit(s)')
 

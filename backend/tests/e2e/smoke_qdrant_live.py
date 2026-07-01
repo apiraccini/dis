@@ -6,9 +6,10 @@ explicitly:
     POSTGRES_HOST=localhost QDRANT_URL=http://localhost:6333 \
         uv run python -m tests.e2e.smoke_qdrant_live
 
-Asserts: ensure_collection (idempotent) → upsert two chunks → search returns
-ranked hits → filter by tag and document_id → delete_by_document → re-search
-empty. Also verifies the payload indexes were created.
+Asserts: ensure_collection (idempotent) → upsert two chunks (dense + sparse) →
+hybrid search returns ranked hits → filter by tag and document_id →
+delete_by_document → re-search empty. Also verifies the payload indexes were
+created.
 """
 
 from __future__ import annotations
@@ -19,13 +20,13 @@ import sys
 from uuid import UUID
 
 from qdrant_client import AsyncQdrantClient
-from qdrant_client.http import models as qm
 
-from src.repositories.protocols import ChunkPayload
-from src.services.adapters.qdrant_vector_store import QdrantVectorStore
+from src.repositories.protocols import ChunkPayload, SparseVector
+from src.services.adapters.qdrant_vector_store import V_DENSE, V_SPARSE, QdrantVectorStore
 
 DOC_ID = UUID('22222222-2222-2222-2222-222222222222')
 COLLECTION = 'documents_smoke'
+NO_SPARSE = SparseVector(indices=[], values=[])
 
 
 async def main() -> None:
@@ -42,54 +43,59 @@ async def main() -> None:
     assert await client.collection_exists(COLLECTION), 'collection not created'
     info = await client.get_collection(COLLECTION)
     vectors_cfg = info.config.params.vectors
-    assert not isinstance(vectors_cfg, dict)
-    assert vectors_cfg is not None
-    assert vectors_cfg.size == 1536
-    assert vectors_cfg.distance == qm.Distance.COSINE
+    assert isinstance(vectors_cfg, dict)
+    assert V_DENSE in vectors_cfg
+    assert vectors_cfg[V_DENSE].size == 1536
+    sparse_cfg = info.config.params.sparse_vectors
+    assert sparse_cfg is not None
+    assert V_SPARSE in sparse_cfg
     indexed = set((info.payload_schema or {}).keys())
     assert {'document_id', 'tags'} <= indexed, f'missing payload indexes: {indexed}'
-    print(f'  [ok] provision: collection + indexes {sorted(indexed & {"document_id", "tags"})}')
+    print(f'  [ok] provision: named vectors + indexes {sorted(indexed & {"document_id", "tags"})}')
 
     # 2. idempotent re-provision is a no-op (no error, collection still there).
     await store.provision(dim=1536)
     print('  [ok] re-provision idempotent')
 
-    # 3. upsert two chunks.
+    # 3. upsert two chunks with dense + sparse vectors.
     chunks = [
         ChunkPayload(DOC_ID, 'report.pdf', ['compliance', 'finance'], 0, 'revenue grew 10%'),
         ChunkPayload(DOC_ID, 'report.pdf', ['compliance', 'finance'], 1, 'audit passed cleanly'),
     ]
-    vectors = [[0.9, 0.1, 0.0] + [0.0] * 1533, [0.1, 0.9, 0.0] + [0.0] * 1533]
-    await store.upsert(DOC_ID, chunks, vectors)
-    print('  [ok] upsert 2 chunks')
+    dense = [[0.9, 0.1, 0.0] + [0.0] * 1533, [0.1, 0.9, 0.0] + [0.0] * 1533]
+    sparse = [SparseVector(indices=[1, 2], values=[0.5, 0.5]), NO_SPARSE]
+    await store.upsert(DOC_ID, chunks, dense, sparse)
+    print('  [ok] upsert 2 chunks (dense + sparse)')
 
     # 4. re-upsert replaces (atomic) — count stays 2, not 4.
-    await store.upsert(DOC_ID, chunks, vectors)
+    await store.upsert(DOC_ID, chunks, dense, sparse)
     count_after = (await client.count(COLLECTION, exact=True)).count
     assert count_after == 2, f'expected 2 after re-upsert, got {count_after}'
     print(f'  [ok] re-upsert atomic replace (count={count_after})')
 
-    # 5. search returns ranked hits; the closer vector wins.
-    hits = await store.search([0.95, 0.05, 0.0] + [0.0] * 1533, top_k=5)
+    # 5. hybrid search returns ranked hits; the closer dense vector wins.
+    query_dense = [0.95, 0.05, 0.0] + [0.0] * 1533
+    hits = await store.search(query_dense, NO_SPARSE, top_k=5)
     assert len(hits) == 2, f'expected 2 hits, got {len(hits)}'
     assert hits[0].score >= hits[1].score, 'hits not ranked by descending score'
     assert hits[0].chunk_index == 0, 'nearest vector should be chunk 0'
     assert hits[0].document_name == 'report.pdf'
     assert hits[0].tags == ['compliance', 'finance']
-    print(f'  [ok] search ranked (top score={hits[0].score:.4f})')
+    print(f'  [ok] hybrid search ranked (top score={hits[0].score:.4f})')
 
     # 6. filter by tag narrows to matching chunks.
-    hits_tag = await store.search([0.95, 0.05, 0.0] + [0.0] * 1533, top_k=5, tags=['compliance'])
+    hits_tag = await store.search(query_dense, NO_SPARSE, top_k=5, tags=['compliance'])
     assert len(hits_tag) == 2, f'tag filter should match both, got {len(hits_tag)}'
-    hits_no = await store.search([0.95, 0.05, 0.0] + [0.0] * 1533, top_k=5, tags=['nonexistent'])
+    hits_no = await store.search(query_dense, NO_SPARSE, top_k=5, tags=['nonexistent'])
     assert hits_no == [], 'nonexistent tag should return nothing'
     print('  [ok] tag filter pushdown (match + no-match)')
 
     # 7. filter by document_id.
-    hits_doc = await store.search([0.95, 0.05, 0.0] + [0.0] * 1533, top_k=5, document_ids=[DOC_ID])
+    hits_doc = await store.search(query_dense, NO_SPARSE, top_k=5, document_ids=[DOC_ID])
     assert len(hits_doc) == 2
     hits_other = await store.search(
-        [0.95, 0.05, 0.0] + [0.0] * 1533,
+        query_dense,
+        NO_SPARSE,
         top_k=5,
         document_ids=[UUID('33333333-3333-3333-3333-333333333333')],
     )
@@ -99,7 +105,7 @@ async def main() -> None:
     # 8. delete_by_document clears the chunks; re-search is empty.
     await store.delete_by_document(DOC_ID)
     assert (await client.count(COLLECTION, exact=True)).count == 0
-    assert await store.search([0.95, 0.05, 0.0] + [0.0] * 1533, top_k=5) == []
+    assert await store.search(query_dense, NO_SPARSE, top_k=5) == []
     # delete is a no-op when already empty.
     await store.delete_by_document(DOC_ID)
     print('  [ok] delete_by_document (clears + idempotent no-op)')

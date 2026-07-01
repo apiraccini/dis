@@ -13,7 +13,6 @@ class Settings(BaseSettings):
 
     # Qdrant (vectors + payload filtering by document/tag)
     qdrant_url: str = 'http://qdrant:6333'
-    qdrant_api_key: str | None = None
     qdrant_collection: str = 'documents'
 
     # Embeddings via OpenRouter (OpenAI-compatible API). Only the key is secret;

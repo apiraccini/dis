@@ -18,9 +18,6 @@ MAX_TOP_K = 50
 
 mcp = FastMCP('DIS Knowledge Base', auth=build_mcp_auth())
 
-# path="/" → endpoint is exactly /mcp when mounted at /mcp (default /mcp yields /mcp/mcp).
-# stateless_http + json_response go on http_app(), NOT the FastMCP constructor
-# (PrefectHQ/fastmcp#3618).
 mcp_app = mcp.http_app(
     path='/',
     stateless_http=True,
@@ -73,7 +70,6 @@ async def list_documents(
     repo: DocumentRepository = Depends(get_document_repo),  # noqa: B008
 ) -> ListDocumentsResult:
     """List documents with pagination and optional tag filter."""
-    # offset/limit clamping (incl. the 500 cap) is enforced at the repository boundary.
     rows, total = await repo.list_documents(offset=offset, limit=limit, tag=tag)
     return ListDocumentsResult(
         documents=[
@@ -115,8 +111,10 @@ async def _search(
             raise ToolError(f'invalid document id: {exc}') from exc
 
     [vector] = await adapters.query_embedder.embed([query])
+    [sparse_vector] = await adapters.sparse_embedder.embed([query])
     hits: list[SearchHit] = await adapters.vectors.search(
         query=vector,
+        sparse_query=sparse_vector,
         top_k=top_k,
         tags=tags,
         document_ids=ids,

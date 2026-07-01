@@ -6,7 +6,7 @@ from uuid import UUID
 from qdrant_client import AsyncQdrantClient
 from qdrant_client.http import models as qm
 
-from src.repositories.protocols import ChunkPayload, SearchHit
+from src.repositories.protocols import ChunkPayload, SearchHit, SparseVector
 
 __all__ = ['QdrantVectorStore']
 
@@ -21,17 +21,25 @@ F_TAGS = 'tags'
 F_CHUNK_INDEX = 'chunk_index'
 F_TEXT = 'text'
 
+# Named vectors (single source of truth).
+V_DENSE = 'dense'
+V_SPARSE = 'sparse'
+
+# Candidate pool size for each prefetch stage before RRF fusion narrows to top_k.
+_PREFETCH_LIMIT = 100
+
 
 class QdrantVectorStore:
     """VectorStore backed by Qdrant (async).
 
-    - Collection is created on startup if absent (see `ensure_collection`).
+    - Collection is created on startup if absent (see `ensure_collection`),
+      with two named vectors per point: `dense` (semantic) and `sparse` (BM25).
     - upsert atomically replaces a document's chunks: delete-by-document then
       insert. A failure between the two surfaces to the ingestion failure path
       (no chunk_count is set).
-    - search pushes tags (OR) and document_ids (membership) into the query as
-      native payload filters; results are ranked by descending cosine
-      similarity (Qdrant returns similarity as the score for COSINE distance).
+    - search runs a dense prefetch and a sparse prefetch (each with tags/
+      document_ids pushed as native payload filters) and fuses them with
+      Reciprocal Rank Fusion (RRF); the returned score is the fused RRF score.
     """
 
     def __init__(self, *, client: AsyncQdrantClient, collection: str) -> None:
@@ -44,7 +52,8 @@ class QdrantVectorStore:
             return
         await client.create_collection(
             collection,
-            vectors_config=qm.VectorParams(size=dim, distance=qm.Distance.COSINE),
+            vectors_config={V_DENSE: qm.VectorParams(size=dim, distance=qm.Distance.COSINE)},
+            sparse_vectors_config={V_SPARSE: qm.SparseVectorParams()},
         )
         # Payload indexes on the filtered fields. Without these, filtered HNSW
         # queries can't traverse filtered-out nodes and fall back to full-scan
@@ -67,12 +76,16 @@ class QdrantVectorStore:
         document_id: UUID,
         chunks: list[ChunkPayload],
         vectors: list[list[float]],
+        sparse_vectors: list[SparseVector],
     ) -> None:
         await self._delete_by_document(document_id)
         points = [
             qm.PointStruct(
                 id=self._point_id(document_id, ch.chunk_index),
-                vector=vec,
+                vector={
+                    V_DENSE: vec,
+                    V_SPARSE: qm.SparseVector(indices=sv.indices, values=sv.values),
+                },
                 payload={
                     F_DOCUMENT_ID: str(document_id),
                     F_DOCUMENT_NAME: ch.document_name,
@@ -81,7 +94,7 @@ class QdrantVectorStore:
                     F_TEXT: ch.text,
                 },
             )
-            for ch, vec in zip(chunks, vectors, strict=True)
+            for ch, vec, sv in zip(chunks, vectors, sparse_vectors, strict=True)
         ]
         await self._client.upsert(self._collection, points=points)
 
@@ -104,30 +117,31 @@ class QdrantVectorStore:
     async def search(
         self,
         query: list[float],
+        sparse_query: SparseVector,
         top_k: int,
         *,
         tags: list[str] | None = None,
         document_ids: list[UUID] | None = None,
     ) -> list[SearchHit]:
-        must: list[qm.Condition] = []
-        if tags:
-            # Stored tags are always normalized (lowercased, trimmed); normalize the
-            # query side too so matching mirrors InMemoryVectorStore (contract fidelity).
-            norm_tags = [t.strip().lower() for t in tags]
-            must.append(qm.FieldCondition(key=F_TAGS, match=qm.MatchAny(any=norm_tags)))
-        if document_ids:
-            must.append(
-                qm.FieldCondition(
-                    key=F_DOCUMENT_ID,
-                    match=qm.MatchAny(any=[str(d) for d in document_ids]),
-                )
-            )
-        query_filter = qm.Filter(must=must) if must else None
+        query_filter = self._build_filter(tags, document_ids)
 
         resp = await self._client.query_points(
             self._collection,
-            query=query,
-            query_filter=query_filter,
+            prefetch=[
+                qm.Prefetch(
+                    query=query,
+                    using=V_DENSE,
+                    filter=query_filter,
+                    limit=_PREFETCH_LIMIT,
+                ),
+                qm.Prefetch(
+                    query=qm.SparseVector(indices=sparse_query.indices, values=sparse_query.values),
+                    using=V_SPARSE,
+                    filter=query_filter,
+                    limit=_PREFETCH_LIMIT,
+                ),
+            ],
+            query=qm.FusionQuery(fusion=qm.Fusion.RRF),
             limit=top_k,
             with_payload=True,
             with_vectors=False,
@@ -147,3 +161,23 @@ class QdrantVectorStore:
                 )
             )
         return hits
+
+    @staticmethod
+    def _build_filter(
+        tags: list[str] | None,
+        document_ids: list[UUID] | None,
+    ) -> qm.Filter | None:
+        must: list[qm.Condition] = []
+        if tags:
+            # Stored tags are always normalized (lowercased, trimmed); normalize the
+            # query side too so matching mirrors InMemoryVectorStore (contract fidelity).
+            norm_tags = [t.strip().lower() for t in tags]
+            must.append(qm.FieldCondition(key=F_TAGS, match=qm.MatchAny(any=norm_tags)))
+        if document_ids:
+            must.append(
+                qm.FieldCondition(
+                    key=F_DOCUMENT_ID,
+                    match=qm.MatchAny(any=[str(d) for d in document_ids]),
+                )
+            )
+        return qm.Filter(must=must) if must else None

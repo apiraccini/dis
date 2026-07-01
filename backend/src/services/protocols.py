@@ -1,5 +1,7 @@
 from typing import Protocol, runtime_checkable
 
+from src.repositories.protocols import SparseVector
+
 
 @runtime_checkable
 class Parser(Protocol):
@@ -19,4 +21,9 @@ class Embedder(Protocol):
     async def embed(self, texts: list[str]) -> list[list[float]]: ...
 
 
-__all__ = ['Chunker', 'Embedder', 'Parser']
+@runtime_checkable
+class SparseEmbedder(Protocol):
+    async def embed(self, texts: list[str]) -> list[SparseVector]: ...
+
+
+__all__ = ['Chunker', 'Embedder', 'Parser', 'SparseEmbedder']
