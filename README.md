@@ -2,8 +2,6 @@
 
 Backend infrastructure for a tagged-document knowledge base: a document-management web UI, an ingestion pipeline (parse → chunk → embed → store), and an **MCP server** exposing the knowledge base as agent-ready tools over Streamable HTTP.
 
-> **State: v0.1.0.** See `CHANGELOG.md` for what shipped.
-
 ## Architecture
 
 The system is composed of four Docker services and a layered Python backend:
@@ -14,14 +12,14 @@ The system is composed of four Docker services and a layered Python backend:
 flowchart TB
     subgraph User
         browser["Browser"]
-        agent["MCP Agent<br/>(Claude, custom)"]
+        agent["MCP Client"]
     end
 
-    subgraph Docker
-        frontend["frontend<br/>React SPA<br/>nginx :80"]
-        backend["backend<br/>FastAPI<br/>:8000"]
-        db[("db<br/>PostgreSQL 17<br/>:5432")]
-        qdrant[("qdrant<br/>Vector store<br/>:6333")]
+    subgraph DIS
+        frontend["frontend (React)"]
+        backend["backend (FastAPI)"]
+        db["db (postgres)]
+        qdrant["vector store (qdrant)"]
     end
 
     browser -->|GET /| frontend
@@ -130,9 +128,8 @@ See `CHANGELOG.md` for v0.1.0.
 ### v0.1.1
 
 - [x] **Hybrid search** — dense + sparse (BM25) named vectors fused via RRF.
-- [ ] **OCR for scanned PDFs** — extend ingestion with MarkItDown's `markitdown-ocr` extension plus update example documents
-- [ ] **Evolve MCP tools** — tools to add/modify emerge from the above (e.g. `get_full_document`, enhanced search with summaries). No `delete` tool — KB stays read-only for agents.
-- [ ] **Frontend enhancements**: document detail view, tag filter on list, pagination UI
+- [x] **OCR for scanned PDFs** — extend ingestion with MarkItDown's `markitdown-ocr` extension plus update example documents
+- [ ] **Evolve MCP tools** — enhance/improve tools.
 
 
 ## Repo layout

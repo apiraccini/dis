@@ -1,4 +1,14 @@
 repos:
+  # General: base hooks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-json
+        exclude: 'tsconfig.*\.json' # tsconfig files are jsonc with comments
+
   # Python: ruff (lint + format)
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.15.20
@@ -16,17 +26,6 @@ repos:
         language: system
         types: [python]
         pass_filenames: false
-
-  # General: base hooks
-  - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v6.0.0
-    hooks:
-      - id: trailing-whitespace
-      - id: end-of-file-fixer
-      - id: check-yaml
-      - id: check-json
-        exclude: 'tsconfig.*\.json'  # tsconfig files are jsonc with comments
-      - id: check-added-large-files
 
   # Frontend: Biome (lint + format) — local hook so config discovery works from frontend/
   - repo: local

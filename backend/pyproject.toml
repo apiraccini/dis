@@ -12,6 +12,7 @@ dependencies = [
     "fastmcp",
     "openai",
     "markitdown[pdf,docx,pptx,xlsx]",
+    "markitdown-ocr",
     "semchunk",
     "fastembed",
     "tiktoken",

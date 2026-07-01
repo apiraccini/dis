@@ -27,3 +27,7 @@ expense-policy.pdf:
 data-privacy.pdf:
   - legal
   - compliance
+
+architecture-overview.pdf:
+  - engineering
+  - architecture
