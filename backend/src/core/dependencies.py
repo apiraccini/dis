@@ -16,7 +16,9 @@ from src.services.ingestion import IngestionService
 # Thin alias so endpoints import dependency from core.dependencies.
 get_db = get_session
 
-# Module-level adapters singleton, set once at startup.
+# Module-level singleton (not app.state) so both FastAPI endpoints and FastMCP tools —
+# two separate DI systems — can share the same instance without threading app state
+# through both.
 _adapters: Adapters | None = None
 
 
@@ -38,7 +40,7 @@ async def get_ingestion_service(
     yield build_ingestion_service(session, adapters)
 
 
-async def get_document_repository(
+async def get_request_document_repo(
     session: Annotated[AsyncSession, Depends(get_db)],
 ) -> AsyncGenerator[DocumentRepository, None]:
     yield SqlModelDocumentRepository(session)
@@ -54,8 +56,8 @@ __all__ = [
     'get_adapters',
     'get_db',
     'get_document_repo',
-    'get_document_repository',
     'get_ingestion_service',
+    'get_request_document_repo',
     'get_session',
     'set_adapters',
 ]

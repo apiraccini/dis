@@ -5,8 +5,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from src.core.dependencies import (
-    get_document_repository,
     get_ingestion_service,
+    get_request_document_repo,
 )
 from src.services.factory import Adapters
 
@@ -29,11 +29,11 @@ async def test_get_ingestion_service_yields_service() -> None:
 
 
 @pytest.mark.asyncio
-async def test_get_document_repository_yields_repo() -> None:
-    """get_document_repository yields a SqlModelDocumentRepository."""
+async def test_get_request_document_repo_yields_repo() -> None:
+    """get_request_document_repo yields a SqlModelDocumentRepository."""
     mock_session = AsyncMock()
 
-    gen = get_document_repository(mock_session)
+    gen = get_request_document_repo(mock_session)
     repo = await gen.__anext__()
 
     from src.repositories.document_repo import SqlModelDocumentRepository

@@ -18,11 +18,11 @@ src/
 ├── db.py                async engine + session factory + init_db (create_all)
 ├── core/
 │   ├── config.py        Settings (env vars, dev defaults)
-│   ├── dependencies.py  get_db session dependency
+│   ├── dependencies.py  DI: get_db, get_adapters/set_adapters, get_document_repo(sitory), get_ingestion_service
 │   └── security.py      build_mcp_auth() → StaticTokenVerifier
 ├── models/              SQLModel tables (Document w/ parsed content + content hash + tags as a Postgres text[] column; no Tag/DocumentTag link, no Chunk table)
-├── schemas/             Pydantic request/response schemas (backlog)
-├── endpoints/           FastAPI routers (backlog)
+├── schemas/             Pydantic request/response schemas
+├── endpoints/           FastAPI routers
 ├── services/            Business logic + ingestion orchestrator + adapters
 │   ├── protocols.py     Parser / Chunker / Embedder / SparseEmbedder Protocols
 │   ├── ingestion.py     IngestionService (two-phase prepare/finalize, dedup, lifecycle)
