@@ -4,11 +4,11 @@ from dataclasses import dataclass
 from typing import Protocol, runtime_checkable
 from uuid import UUID
 
+from src.core.config import settings
 from src.core.errors import DocumentNotFoundError, DuplicateDocumentError  # noqa: F401
 from src.models.document import Document, DocumentStatus
 
 __all__ = [
-    'MAX_PAGE_SIZE',
     'ChunkPayload',
     'DocumentRepository',
     'SearchHit',
@@ -17,14 +17,10 @@ __all__ = [
     'clamp_pagination',
 ]
 
-# Hard cap on page size, enforced at the repository boundary so every caller
-# (REST endpoint and MCP tool alike) gets the same contract.
-MAX_PAGE_SIZE = 500
-
 
 def clamp_pagination(offset: int, limit: int) -> tuple[int, int]:
-    """Clamp pagination args to safe bounds: offset >= 0, 0 <= limit <= MAX_PAGE_SIZE."""
-    return max(offset, 0), max(0, min(limit, MAX_PAGE_SIZE))
+    """Clamp pagination args to safe bounds: offset >= 0, 0 <= limit <= settings.max_page_size."""
+    return max(offset, 0), max(0, min(limit, settings.max_page_size))
 
 
 @runtime_checkable
