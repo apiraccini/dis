@@ -90,15 +90,17 @@ class SqlModelDocumentRepository:
         await self._session.refresh(doc)
         return doc
 
-    async def update_chunk_count(
+    async def update_counts(
         self,
         document_id: UUID,
         chunk_count: int,
+        token_count: int,
     ) -> Document:
         doc = await self.get_by_id(document_id)
         if doc is None:
             raise DocumentNotFoundError(f'no document with id {document_id}')
         doc.chunk_count = chunk_count
+        doc.token_count = token_count
         self._session.add(doc)
         await self._session.commit()
         await self._session.refresh(doc)

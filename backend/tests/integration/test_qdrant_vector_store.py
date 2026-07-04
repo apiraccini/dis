@@ -189,3 +189,26 @@ async def test_delete_by_document_sends_document_id_filter() -> None:
     flt = client.delete.call_args.kwargs['points_selector']
     assert flt.must[0].key == 'document_id'
     assert flt.must[0].match.value == str(DOC_ID)
+
+
+async def test_get_chunks_retrieves_by_deterministic_point_ids() -> None:
+    client = AsyncMock()
+    client.retrieve.return_value = [
+        SimpleNamespace(
+            payload={
+                'document_id': str(DOC_ID),
+                'document_name': 'report.pdf',
+                'tags': ['compliance'],
+                'chunk_index': i,
+                'text': f'chunk {i} text',
+            }
+        )
+        for i in (2, 1)  # out of order: get_chunks must sort by chunk_index
+    ]
+    store = QdrantVectorStore(client=client, collection='documents')
+
+    got = await store.get_chunks(DOC_ID, [1, 2])
+
+    assert [(c.chunk_index, c.text) for c in got] == [(1, 'chunk 1 text'), (2, 'chunk 2 text')]
+    ids = client.retrieve.call_args.kwargs['ids']
+    assert sorted(ids) == sorted(QdrantVectorStore._point_id(DOC_ID, i) for i in (1, 2))

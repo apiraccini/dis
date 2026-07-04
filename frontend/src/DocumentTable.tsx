@@ -51,6 +51,7 @@ export function DocumentTable({ documents, loading, error, onRetry, onDelete }: 
             <th className="px-4 py-2 font-medium">Status</th>
             <th className="px-4 py-2 font-medium">Size</th>
             <th className="px-4 py-2 font-medium">Chunks</th>
+            <th className="px-4 py-2 font-medium">Tokens</th>
             <th className="px-4 py-2 font-medium">Uploaded</th>
             <th className="px-4 py-2 font-medium" />
           </tr>
@@ -76,6 +77,7 @@ export function DocumentTable({ documents, loading, error, onRetry, onDelete }: 
               </td>
               <td className="px-4 py-2 text-gray-300">{formatSize(doc.size_bytes)}</td>
               <td className="px-4 py-2 text-gray-300">{doc.chunk_count}</td>
+              <td className="px-4 py-2 text-gray-300">{doc.token_count.toLocaleString()}</td>
               <td className="px-4 py-2 text-gray-300">{formatDate(doc.created_at)}</td>
               <td className="px-4 py-2 text-right">
                 <button

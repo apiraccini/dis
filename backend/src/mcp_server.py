@@ -12,6 +12,7 @@ from src.core.config import settings
 from src.core.dependencies import get_adapters, get_document_repo
 from src.core.errors import DocumentNotFoundError, EmbeddingError, ParseError
 from src.core.security import build_mcp_auth
+from src.models.document import Document
 from src.repositories.protocols import DocumentRepository, SearchHit
 from src.services.factory import Adapters
 from src.services.tags import list_tags as list_tags_service
@@ -34,7 +35,20 @@ class DocumentSummary(BaseModel):
     tags: list[str]
     status: str
     chunk_count: int
+    token_count: int
     created_at: str
+
+    @classmethod
+    def from_document(cls, d: Document) -> DocumentSummary:
+        return cls(
+            id=str(d.id),
+            filename=d.filename,
+            tags=list(d.tags),
+            status=d.status.value,
+            chunk_count=d.chunk_count,
+            token_count=d.token_count,
+            created_at=d.created_at.isoformat(),
+        )
 
 
 class ListDocumentsResult(BaseModel):
@@ -49,7 +63,7 @@ class ListDocumentsResult(BaseModel):
             tags = ', '.join(d.tags) if d.tags else 'no tags'
             lines.append(
                 f'- {d.filename} [{d.id}] — {tags} — {d.status}, '
-                f'{d.chunk_count} chunks, uploaded {d.created_at}'
+                f'{d.chunk_count} chunks, {d.token_count} tokens, uploaded {d.created_at}'
             )
         return '\n'.join(lines)
 
@@ -84,6 +98,22 @@ class SearchResult(BaseModel):
                 f'score={h.score:.3f}) — tags: {tags}\n{h.text}'
             )
         return '\n\n'.join(lines)
+
+
+class GetDocumentResult(BaseModel):
+    summary: DocumentSummary
+    # (chunk_index, text) sections; a full-text read uses a single (-1, text) entry.
+    sections: list[tuple[int, str]]
+
+    def to_text(self) -> str:
+        d = self.summary
+        tags = ', '.join(d.tags) if d.tags else 'no tags'
+        header = (
+            f'{d.filename} [{d.id}] — {tags} — {d.status}, '
+            f'{d.chunk_count} chunks, {d.token_count} tokens'
+        )
+        body = [text if i < 0 else f'[chunk {i}]\n{text}' for i, text in self.sections]
+        return '\n\n'.join([header, *body])
 
 
 ## Error handling
@@ -124,28 +154,19 @@ async def list_documents(
     ] = None,
     repo: DocumentRepository = Depends(get_document_repo),  # noqa: B008
 ):
-    """List known documents and their metadata (filename, tags, status, chunk count).
+    """List known documents and their metadata (filename, tags, status, chunk and token counts).
 
     Use this to discover which documents exist and their IDs/tags before calling
     `search` with a `document_ids` or `tags` filter. Does not return document content —
-    use `search` for that.
+    prefer `search` for that; `get_document` can read a specific document once
+    identified (its `token_count` here tells you whether a full read fits the limit).
     """
     try:
         rows, total = await repo.list_documents(offset=offset, limit=limit, tag=tag)
     except _AGENT_FACING_ERRORS as exc:
         raise _reraise_as_tool_error(exc) from exc
     result = ListDocumentsResult(
-        documents=[
-            DocumentSummary(
-                id=str(d.id),
-                filename=d.filename,
-                tags=list(d.tags),
-                status=d.status.value,
-                chunk_count=d.chunk_count,
-                created_at=d.created_at.isoformat(),
-            )
-            for d in rows
-        ],
+        documents=[DocumentSummary.from_document(d) for d in rows],
         total=total,
     )
     return result.to_text()
@@ -252,6 +273,63 @@ async def search(
     if you need to discover valid filter values.
     """
     result = await _search(query, top_k, adapters, tags=tags, document_ids=document_ids)
+    return result.to_text()
+
+
+@mcp.tool
+async def get_document(
+    document_id: Annotated[
+        str,
+        Field(description='Document UUID, as returned by `list_documents` or `search` hits.'),
+    ],
+    chunks: Annotated[
+        list[int] | None,
+        Field(
+            description=(
+                'Chunk indices to read (as reported in `search` hits, e.g. the hit index '
+                'and its neighbors for more context). Omit to read the full document text.'
+            )
+        ),
+    ] = None,
+    repo: DocumentRepository = Depends(get_document_repo),  # noqa: B008
+    adapters: Adapters = Depends(get_adapters),  # noqa: B008
+):
+    """Read a document's content by ID: the full parsed text, or specific chunks.
+
+    Use this after `search` or `list_documents` has identified the right document —
+    to expand context around a search hit by requesting its neighboring chunk
+    indices, or to deep-dive a whole document when search hits aren't precise
+    enough. Full reads are refused for documents above the configured token limit
+    (check `token_count` in `list_documents`); request specific `chunks` or use
+    `search` instead in that case.
+    """
+    try:
+        doc_uuid = UUID(document_id)
+    except ValueError as exc:
+        raise ToolError(f'invalid document id: {exc}') from exc
+    doc = await repo.get_by_id(doc_uuid)
+    if doc is None:
+        exc = DocumentNotFoundError(f'no document with id {document_id}')
+        raise _reraise_as_tool_error(exc) from exc
+
+    if not chunks:
+        if doc.token_count > settings.max_document_read_tokens:
+            raise ToolError(
+                f'document is too large to read whole ({doc.token_count} tokens > '
+                f'{settings.max_document_read_tokens} limit): request specific `chunks` '
+                f'(0..{doc.chunk_count - 1}) or use `search` instead'
+            )
+        sections = [(-1, doc.parsed_text)]
+    else:
+        out_of_range = sorted(i for i in chunks if i < 0 or i >= doc.chunk_count)
+        if out_of_range:
+            raise ToolError(
+                f'chunk index out of range: {out_of_range}; valid range is 0..{doc.chunk_count - 1}'
+            )
+        payloads = await adapters.vectors.get_chunks(doc_uuid, chunks)
+        sections = [(c.chunk_index, c.text) for c in payloads]
+
+    result = GetDocumentResult(summary=DocumentSummary.from_document(doc), sections=sections)
     return result.to_text()
 
 

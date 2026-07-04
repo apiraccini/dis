@@ -16,7 +16,7 @@ Upload a file for ingestion. Accepts multipart form data (file + optional tags).
 
 List documents, paginated.
 
-- **Requirement: List returns paginated documents** — `GET /api/documents` SHALL accept `offset` (int, default 0) and `limit` (int, default 100, max 500) query parameters and return `{items: [...], total: int}`
+- **Requirement: List returns paginated documents** — `GET /api/documents` SHALL accept `offset` (int, default 0) and `limit` (int, default 100, max 500) query parameters and return `{items: [...], total: int}`; document payloads (list and get-by-id) include `token_count` alongside existing metadata
 - **Requirement: List omits parsed_text** — List responses SHALL exclude `parsed_text` to reduce payload size; if the full document is needed the client fetches by id
 - **Requirement: List filters by tag** — `GET /api/documents?tag=compliance` SHALL return only documents whose tag list contains `compliance` (case-insensitive, exact match after normalization)
   - Scenario: tag filter intersection — GIVEN three documents tagged `["compliance"]`, `["audit"]`, and `["compliance", "audit"]`, WHEN `?tag=compliance`, THEN two documents are returned

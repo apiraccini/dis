@@ -44,6 +44,8 @@ class Settings(BaseSettings):
     # Hard caps enforced at the repository/MCP boundary, shared by REST and MCP callers.
     max_page_size: int = 500
     max_search_top_k: int = 50
+    # Full-document reads via the MCP get_document tool refuse above this many tokens.
+    max_document_read_tokens: int = 20000
 
     # CORS for the REST API (frontend origin(s))
     backend_cors_origins: list[str] = ['http://localhost:5173', 'http://localhost:3000']

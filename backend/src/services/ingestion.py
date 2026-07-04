@@ -81,7 +81,8 @@ class IngestionService:
             for i, chunk in enumerate(chunks)
         ]
         await self._vectors.upsert(document.id, records, vectors, sparse_vectors)
-        await self._documents.update_chunk_count(document_id, len(chunks))
+        token_count = self._chunker.count_tokens(document.parsed_text)
+        await self._documents.update_counts(document_id, len(chunks), token_count)
         return await self._documents.update_status(document_id, DocumentStatus.ready)
 
     async def finalize_safe(self, document_id: UUID) -> None:

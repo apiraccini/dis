@@ -48,3 +48,12 @@ def test_respects_configured_overlap() -> None:
     chunks = chunker.chunk(text)
 
     assert len(chunks) > 1
+
+
+def test_count_tokens_matches_encoder() -> None:
+    chunker = SemchunkChunker(chunk_size=128)
+    import tiktoken
+
+    enc = tiktoken.get_encoding('cl100k_base')
+    text = 'hello world this is short'
+    assert chunker.count_tokens(text) == len(enc.encode(text))

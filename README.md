@@ -25,7 +25,7 @@ flowchart TB
     agent -->|"/mcp (Streamable HTTP) Bearer auth"| backend
     frontend -->|/api/* proxy| backend
     backend -->|SQL/asyncpg| db
-    backend -->|gRPC| qdrant
+    backend -->|HTTP| qdrant
 ```
 
 The repository is organised with this layout:
@@ -122,15 +122,16 @@ Other notes:
 
 ## MCP server design
 
-Three tools are registered: `list_documents`, `list_tags`, `search`. The assignment's `search_by_tag` / `search_by_document` are deliberately folded into `search`'s `tags` / `document_ids` filters rather than kept as separate tools, to avoid tool-choice ambiguity for the calling agent.
+Four tools are registered: `list_documents`, `list_tags`, `search`, `get_document`. The assignment's `search_by_tag` / `search_by_document` are deliberately folded into `search`'s `tags` / `document_ids` filters rather than kept as separate tools, to avoid tool-choice ambiguity for the calling agent. `get_document` is an addition beyond the proposed five: search returns isolated chunks, and once the agent has identified the right document it needs a way to read more of it (neighboring chunks around a hit for more context, or the full text for a deep dive).
 
 NB: I don't think there is a best general solution to having one broader tool vs more specific ones, and as for the ingestion pipeline the choice should be guided by the specifics of the knowledge base at hand, and possibly some proper evaluations on how the agent is performing with different setups of MCP tools. With that said, I personally would start simple with a single search tool, and evaluate the necessity of another configuration based on performance.
 
 The registered tools and their parameters:
 
-- **`list_documents`**: returns document metadata (filename, ID, tags, status, chunk count, upload date). Parameters: `offset` (int ≥ 0, default 0), `limit` (int 1–500, default 100), `tag` (optional string, filters to documents carrying that exact tag).
+- **`list_documents`**: returns document metadata (filename, ID, tags, status, chunk count, token count, upload date). Parameters: `offset` (int ≥ 0, default 0), `limit` (int 1–500, default 100), `tag` (optional string, filters to documents carrying that exact tag).
 - **`list_tags`**: returns all unique tags currently assigned to at least one document, sorted alphabetically. No parameters.
 - **`search`**: hybrid semantic + keyword search over chunks. Parameters: `query` (non-empty string), `top_k` (int 1–50, default 5), `tags` (optional list, OR semantics), `document_ids` (optional list of UUIDs; combined with `tags` both filters must match).
+- **`get_document`**: reads a document's content by ID. Parameters: `document_id` (UUID), `chunks` (optional list of chunk indices, as reported in `search` hits). Without `chunks` it returns the full parsed text; documents above a configured token limit (`MAX_DOCUMENT_READ_TOKENS`, default 20000) are refused with a hint to request specific `chunks` or use `search` instead.
 
 A few notes on the agent interface:
 
@@ -144,6 +145,8 @@ Note: Another addition I didn't include but personally consider interesting, is 
 ## Deploy
 
 Deployment is completely local for now.
+
+Only Docker (Engine 24+ with the Compose v2 plugin, i.e. `docker compose`) and an OpenRouter/OpenAI API key are required to run the application locally. For development purposes, please make sure to have `uv`, `prek` and `bun` installed (plus curl for the example data ingestion script).
 
 Clone the project, then use `cp .env.example .env` to copy the example environment file. Set OPENROUTER_API_KEY (you can also use an OpenAI key, see `.env.example` for specifics).
 

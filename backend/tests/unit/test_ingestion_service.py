@@ -97,7 +97,7 @@ async def test_prepare_dedup_miss_creates_processing_doc_with_raw_byte_hash() ->
     assert fetched.status == DocumentStatus.processing
 
 
-async def test_finalize_happy_path_sets_ready_and_chunk_count() -> None:
+async def test_finalize_happy_path_sets_ready_and_counts() -> None:
     service, _, ch, emb, _docs, vectors = _make_service(embedder=FakeEmbedder(dimension=4))
 
     prepared = await service.prepare(content=b'data', filename='doc.txt', tags=['compliance'])
@@ -107,6 +107,7 @@ async def test_finalize_happy_path_sets_ready_and_chunk_count() -> None:
     assert result.status == DocumentStatus.ready
     expected_chunks = ch.chunk(PARSED_TEXT)
     assert result.chunk_count == len(expected_chunks)
+    assert result.token_count == ch.count_tokens(PARSED_TEXT)
     # Expensive work ran.
     assert len(emb.calls) == 1
     assert len(emb.calls[0]) == len(expected_chunks)

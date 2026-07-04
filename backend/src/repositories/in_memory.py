@@ -78,15 +78,17 @@ class InMemoryDocumentRepository:
         doc.updated_at = datetime.now(UTC)
         return copy.deepcopy(doc)
 
-    async def update_chunk_count(
+    async def update_counts(
         self,
         document_id: UUID,
         chunk_count: int,
+        token_count: int,
     ) -> Document:
         doc = self._store.get(document_id)
         if doc is None:
             raise DocumentNotFoundError(f'no document with id {document_id}')
         doc.chunk_count = chunk_count
+        doc.token_count = token_count
         doc.updated_at = datetime.now(UTC)
         return copy.deepcopy(doc)
 
@@ -144,6 +146,16 @@ class InMemoryVectorStore:
 
     async def delete_by_document(self, document_id: UUID) -> None:
         self._vectors.pop(document_id, None)
+
+    async def get_chunks(
+        self,
+        document_id: UUID,
+        chunk_indices: list[int],
+    ) -> list[ChunkPayload]:
+        wanted = set(chunk_indices)
+        entries = self._vectors.get(document_id, [])
+        found = [copy.deepcopy(c) for c, _, _ in entries if c.chunk_index in wanted]
+        return sorted(found, key=lambda c: c.chunk_index)
 
     async def provision(self, dim: int) -> None:
         pass  # In-memory store doesn't need provisioning
