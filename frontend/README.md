@@ -18,7 +18,7 @@ src/
 ├── StatusBadge.tsx     processing/ready/failed badge with error tooltip
 ├── useDocuments.ts     data hook: fetch + poll while any doc is processing
 ├── api.ts              REST client (upload/list/delete), ApiError type
-├── types.ts            shared frontend types (Document, Tag, etc.)
+├── types.ts            shared frontend types (DocumentResponse, DocumentStatus, etc.)
 ├── test-setup.ts       @testing-library/jest-dom
 └── index.css
 nginx.conf              SPA serving + /api proxy to backend
@@ -36,4 +36,4 @@ bun run test             # vitest
 
 ## Backlog
 
-See `../CHANGELOG.md` for v0.1.0.
+No active backlog. See `../CHANGELOG.md` for release history.

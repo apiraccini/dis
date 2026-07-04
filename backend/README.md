@@ -14,11 +14,11 @@ FastAPI app serving the REST API, ingestion pipeline, and MCP server (the core o
 ```
 src/
 ├── main.py              FastAPI app: CORS, /health, mounts /mcp, combines lifespans
-├── mcp_server.py        FastMCP instance + http_app() (path=/, stateless, json) + 5 knowledge-base tools
+├── mcp_server.py        FastMCP instance + http_app() (path=/, stateless, json) + 3 knowledge-base tools
 ├── db.py                async engine + session factory + init_db (create_all)
 ├── core/
 │   ├── config.py        Settings (env vars, dev defaults)
-│   ├── dependencies.py  DI: get_db, get_adapters/set_adapters, get_document_repo(sitory), get_ingestion_service
+│   ├── dependencies.py  DI: get_db, get_adapters/set_adapters, get_document_repo(sitory), get_ingestion_service, get_finalizer
 │   └── security.py      build_mcp_auth() → StaticTokenVerifier
 ├── models/              SQLModel tables (Document w/ parsed content + content hash + tags as a Postgres text[] column; no Tag/DocumentTag link, no Chunk table)
 ├── schemas/             Pydantic request/response schemas
@@ -45,9 +45,9 @@ tests/                   shared fakes at the root; tiered by the test pyramid (s
 ## Development
 ```bash
 uv sync --dev
-uv run uvicorn src.main:app --reload
+uv run uvicorn src.main:app --reload # needs db + qdrant reachable
 ```
 
 ## Backlog
 
-See `../CHANGELOG.md` for v0.1.0.
+No active backlog. See `../CHANGELOG.md` for release history.

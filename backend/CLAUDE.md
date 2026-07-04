@@ -8,7 +8,7 @@
 - Clean architecture: endpoints → services → repositories (Protocol)
 - Ingestion pipeline stages are Protocols (`services/protocols.py`): parser=markitdown, chunker=semchunk, embedder=OpenRouter (Qwen3-Embedding-8B)
 - No Alembic: schema via SQLModel.metadata.create_all on startup (documented limitation)
-- Auth trimmed: no JWT/login. MCP endpoint gated by a static Bearer token (FastMCP StaticTokenVerifier); REST API is internal to the compose network
+- Auth trimmed: no JWT/login. MCP endpoint gated by a static Bearer token (FastMCP StaticTokenVerifier); REST API is unauthenticated (its port is published for local dev — lock down for any real deployment)
 
 ## Quick commands
 - `cd backend && uv sync --dev`: install deps including dev tools
