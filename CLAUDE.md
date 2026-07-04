@@ -21,7 +21,7 @@ Backend infrastructure for a tagged-document knowledge base: a document-manageme
 - `backend/`: FastAPI app (REST + ingestion) + MCP server, see `backend/CLAUDE.md`
 - `frontend/`: React app, see `frontend/CLAUDE.md`
 - `sdd/`: specs and change folders
-- `docs/assignment.md`: original assignment
+- `docs/`: Part 1 answers
 
 <!-- CODEGRAPH_START -->
 ## CodeGraph

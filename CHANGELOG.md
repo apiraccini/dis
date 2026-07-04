@@ -6,6 +6,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-07-04
+
+### Added
+
+- **Hybrid search**: dense (Qwen3) + sparse (FastEmbed BM25, local) named vectors in Qdrant, fused server-side via Reciprocal Rank Fusion — exact keyword/domain-term matches now complement semantic similarity.
+- **VLM-assisted parsing**: optional `markitdown-ocr` plugin with a vision LLM via OpenRouter (`USE_VLM`, default off) so scanned/image-only PDFs extract text; added a scanned example document.
+
+### Changed
+
+- **MCP tools consolidated from five to three**: `search_by_tag` / `search_by_document` folded into `search`'s `tags` / `document_ids` filters to avoid tool-choice ambiguity; richer tool descriptions, LLM-readable plain-text output, and Pydantic-validated parameter bounds (`ge`/`le` caps on `top_k`, `limit`, `offset`; non-empty `query`).
+- Duplicate uploads now return a structured error (409) instead of the existing document.
+
+### Fixed
+
+- Deterministic document list ordering (`created_at` desc, `id` tie-break) for stable pagination; Qdrant image pinned.
+- Document delete removes vectors before the SQL row so a partial failure stays retryable; backend/frontend healthchecks hardened.
+- Background ingestion (`finalize`) now opens its own DB session instead of reusing the request-scoped one that FastAPI tears down before background tasks run.
+
 ## [0.1.0] - 2026-07-01
 
 ### Added
@@ -18,5 +36,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **Example data & scripts**: 7 example documents across 5 formats (md, pdf, html, docx, txt) plus `scripts/convert_data.sh` (regenerate PDF/DOCX from source markdown) and `scripts/ingest_data.sh` (load example data into a running stack).
 - Docker Compose stack (frontend, backend, PostgreSQL 17, Qdrant), CI, linting, and end-to-end test coverage across REST API and MCP tools.
 
-[Unreleased]: https://github.com/apiraccini/dis/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/apiraccini/dis/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/apiraccini/dis/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/apiraccini/dis/releases/tag/v0.1.0

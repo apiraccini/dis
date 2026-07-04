@@ -55,8 +55,9 @@ while IFS=' ' read -r filename tags; do
         "$UPLOAD_URL")
 
     case "$HTTP_CODE" in
-        200) echo "ok (existing, dedup)" ;;
         202) echo "ok (ingested)" ;;
+        409) echo "ok (duplicate, skipped)" ;;
+        422) echo "SKIP (parser produced no text — scanned document? set USE_VLM=true in .env)" ;;
         *)   echo "FAILED (HTTP $HTTP_CODE)" && FAILED=$((FAILED + 1)) ;;
     esac
 done < <(parse_mapping)
