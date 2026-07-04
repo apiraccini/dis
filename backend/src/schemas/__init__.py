@@ -35,7 +35,7 @@ class DocumentResponse(BaseModel):
 
 
 class DocumentDetailResponse(DocumentResponse):
-    """Full document including parsed_text (used for get-by-id and upload responses)."""
+    """Full document including parsed_text (used for get-by-id responses)."""
 
     parsed_text: str
 

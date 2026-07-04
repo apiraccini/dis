@@ -19,9 +19,10 @@ query text to dense/sparse embeddings to a fused Qdrant lookup.
 - **Qdrant** — stores dense and sparse vectors per chunk, with payload
   filtering by document id and tag, and performs the RRF fusion of both
   vector types at query time.
-- **MCP server** — exposes the knowledge base as three agent-ready tools
+- **MCP server** — exposes the knowledge base as four agent-ready tools
   (`search` with optional tag and document filters, `list_documents`,
-  `list_tags`) gated by a static bearer token, separate from the
+  `list_tags`, and `get_document` for reading a document's full text or
+  specific chunks) gated by a static bearer token, separate from the
   unauthenticated REST API.
 
 ## Deployment Topology
