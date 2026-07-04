@@ -1,4 +1,4 @@
-import type { DocumentDetailResponse, DocumentListResponse } from './types'
+import type { DocumentListResponse, DocumentResponse } from './types'
 
 /** Error carrying the HTTP status and the backend's `detail` message, when present. */
 export class ApiError extends Error {
@@ -28,7 +28,7 @@ export async function listDocuments(): Promise<DocumentListResponse> {
   return res.json()
 }
 
-export async function uploadDocument(file: File, tags: string[]): Promise<DocumentDetailResponse> {
+export async function uploadDocument(file: File, tags: string[]): Promise<DocumentResponse> {
   const form = new FormData()
   form.append('file', file)
   form.append('tags', tags.join(','))

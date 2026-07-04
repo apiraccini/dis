@@ -1,6 +1,6 @@
 [project]
 name = "dis-backend"
-version = "0.1.0"
+version = "0.1.2"
 description = "Document Intelligence Server — REST API, ingestion pipeline, and MCP server."
 requires-python = ">=3.12,<3.13"
 dependencies = [

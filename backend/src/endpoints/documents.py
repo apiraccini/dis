@@ -51,7 +51,7 @@ def _to_summary(doc: Document) -> DocumentResponse:
     return DocumentResponse.model_validate(doc, from_attributes=True)
 
 
-@router.post('/upload', response_model=DocumentDetailResponse)
+@router.post('/upload', response_model=DocumentResponse)
 async def upload_document(
     background_tasks: BackgroundTasks,
     file: UploadFile,
@@ -87,7 +87,7 @@ async def upload_document(
 
     background_tasks.add_task(finalize, prepared.id)
     return Response(
-        content=_to_detail(prepared).model_dump_json(),
+        content=_to_summary(prepared).model_dump_json(),
         media_type='application/json',
         status_code=status.HTTP_202_ACCEPTED,
     )

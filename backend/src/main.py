@@ -37,7 +37,7 @@ async def db_lifespan(_app: FastAPI) -> AsyncIterator[None]:
 # Compose DB init + MCP session-manager lifespan (combine enters in order, exits in reverse).
 app = FastAPI(
     title='Document Intelligence Server',
-    version='0.1.0',
+    version='0.1.2',
     lifespan=combine_lifespans(db_lifespan, mcp_app.lifespan),
 )
 

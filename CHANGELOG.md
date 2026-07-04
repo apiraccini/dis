@@ -4,12 +4,20 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [0.1.2] - 2026-07-04
 
 ### Added
 
 - **`get_document` MCP tool**: read a document by ID — full parsed text or specific chunk indices (fetched from Qdrant by deterministic point ID, matching `search` hits exactly). Full reads are refused above a configured token limit (`MAX_DOCUMENT_READ_TOKENS`, default 20000) with a hint to use `chunks` or `search`.
 - **Per-document token count**: computed at ingestion with the chunker's tokenizer, persisted, and exposed in REST responses, `list_documents` MCP output, and the frontend table — lets agents judge full-read cost up front.
+
+### Changed
+
+- Upload responses (202) now return the document summary without `parsed_text` — no more echoing the full document back to the uploader; `GET /api/documents/{id}` still includes it.
+
+### Fixed
+
+- Example document `architecture-overview` updated to describe the current four MCP tools (was stale at three after `get_document` was added).
 
 ## [0.1.1] - 2026-07-04
 
@@ -41,6 +49,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **Example data & scripts**: 7 example documents across 5 formats (md, pdf, html, docx, txt) plus `scripts/convert_data.sh` (regenerate PDF/DOCX from source markdown) and `scripts/ingest_data.sh` (load example data into a running stack).
 - Docker Compose stack (frontend, backend, PostgreSQL 17, Qdrant), CI, linting, and end-to-end test coverage across REST API and MCP tools.
 
-[Unreleased]: https://github.com/apiraccini/dis/compare/v0.1.1...HEAD
+[0.1.2]: https://github.com/apiraccini/dis/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/apiraccini/dis/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/apiraccini/dis/releases/tag/v0.1.0

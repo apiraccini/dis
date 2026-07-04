@@ -117,7 +117,7 @@ class TestUpload:
         assert body['status'] == 'processing'
         assert body['filename'] == 'report.pdf'
         assert body['tags'] == ['compliance', 'audit']
-        assert 'parsed_text' in body
+        assert 'parsed_text' not in body  # upload returns the summary, not the full text
 
     def test_dedup_hit_returns_409(self, client: TestClient) -> None:
         resp1 = client.post(
