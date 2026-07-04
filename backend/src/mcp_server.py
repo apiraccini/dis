@@ -25,7 +25,7 @@ mcp_app = mcp.http_app(
 )
 
 
-# ── Tool output models ──────────────────────────────────────────────────
+## Tool output models
 
 
 class DocumentSummary(BaseModel):
@@ -67,9 +67,6 @@ class SearchHitResult(BaseModel):
     tags: list[str]
     chunk_index: int
     text: str
-    # Reciprocal Rank Fusion score from combining dense + sparse retrieval, not a raw
-    # cosine similarity — comparable within one search's hits, not across searches or
-    # against a fixed similarity threshold.
     score: float
 
 
@@ -89,11 +86,9 @@ class SearchResult(BaseModel):
         return '\n\n'.join(lines)
 
 
-# ── Error translation ───────────────────────────────────────────────────
+## Error handling
 
-# Domain exceptions that a tool call can surface to the calling agent as a
-# clean message, instead of an unhandled stack trace. Anything not listed
-# here is an unexpected server error and is left to propagate.
+# Anything not listed here is an unexpected server error and is left to propagate.
 _AGENT_FACING_ERRORS: tuple[type[Exception], ...] = (
     DocumentNotFoundError,
     ParseError,
@@ -110,13 +105,15 @@ def _reraise_as_tool_error(exc: Exception) -> ToolError:
 
 @mcp.tool
 async def list_documents(
-    offset: Annotated[int, Field(description='Number of documents to skip, for pagination.')] = 0,
+    offset: Annotated[
+        int, Field(ge=0, description='Number of documents to skip, for pagination.')
+    ] = 0,
     limit: Annotated[
         int,
         Field(
-            description=(
-                f'Maximum number of documents to return (hard cap: {settings.max_page_size}).'
-            )
+            ge=1,
+            le=settings.max_page_size,
+            description='Maximum number of documents to return.',
         ),
     ] = 100,
     tag: Annotated[
@@ -214,13 +211,13 @@ async def _search(
 
 @mcp.tool
 async def search(
-    query: Annotated[str, Field(description='Natural language search query.')],
+    query: Annotated[str, Field(min_length=1, description='Natural language search query.')],
     top_k: Annotated[
         int,
         Field(
-            description=(
-                f'Maximum number of chunks to return (hard cap: {settings.max_search_top_k}).'
-            )
+            ge=1,
+            le=settings.max_search_top_k,
+            description='Maximum number of chunks to return.',
         ),
     ] = 5,
     tags: Annotated[

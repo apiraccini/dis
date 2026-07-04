@@ -14,7 +14,12 @@ from fastapi import (
     status,
 )
 
-from src.core.dependencies import get_ingestion_service, get_request_document_repo
+from src.core.dependencies import (
+    FinalizeFn,
+    get_finalizer,
+    get_ingestion_service,
+    get_request_document_repo,
+)
 from src.core.errors import DocumentNotFoundError, DuplicateDocumentError, ParseError
 from src.models.document import Document
 from src.repositories.protocols import DocumentRepository
@@ -29,6 +34,7 @@ router = APIRouter(prefix='/api/documents', tags=['documents'])
 
 IngestionServiceDep = Annotated[IngestionService, Depends(get_ingestion_service)]
 DocumentRepoDep = Annotated[DocumentRepository, Depends(get_request_document_repo)]
+FinalizerDep = Annotated[FinalizeFn, Depends(get_finalizer)]
 
 
 def _split_tags(tags_str: str | None) -> list[str]:
@@ -50,6 +56,7 @@ async def upload_document(
     background_tasks: BackgroundTasks,
     file: UploadFile,
     service: IngestionServiceDep,
+    finalize: FinalizerDep,
     tags: str = Form(''),
 ) -> Response:
     """Upload a file for ingestion.
@@ -78,7 +85,7 @@ async def upload_document(
             detail=str(exc),
         ) from None
 
-    background_tasks.add_task(service.finalize_safe, prepared.id)
+    background_tasks.add_task(finalize, prepared.id)
     return Response(
         content=_to_detail(prepared).model_dump_json(),
         media_type='application/json',

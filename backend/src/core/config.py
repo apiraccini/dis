@@ -15,13 +15,16 @@ class Settings(BaseSettings):
     qdrant_url: str = 'http://qdrant:6333'
     qdrant_collection: str = 'documents'
 
-    # Embeddings via OpenRouter (OpenAI-compatible API). Only the key is secret;
-    # model/dimensions/chunk params live here with defaults.
+    # Embeddings via any OpenAI-compatible API (default: OpenRouter). Only the key
+    # is secret; model/dimensions/chunk params live here with defaults. To use the
+    # official OpenAI API instead, override base_url/model in .env and set the
+    # input_type vars to empty (OpenAI rejects unknown request fields).
     openrouter_api_key: str | None = None
     embedding_base_url: str = 'https://openrouter.ai/api/v1'
     embedding_model: str = 'qwen/qwen3-embedding-8b'
     embedding_dimensions: int = 1536
-    # Qwen3 supports asymmetric retrieval via input_type.
+    # Qwen3 supports asymmetric retrieval via input_type. Empty string disables
+    # sending the field.
     embedding_input_type_document: str = 'search_document'
     embedding_input_type_query: str = 'search_query'
     embedding_batch_size: int = 64

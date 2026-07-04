@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 
 from src.core.dependencies import (
     get_adapters,
+    get_finalizer,
     get_ingestion_service,
     get_request_document_repo,
 )
@@ -49,15 +50,16 @@ def _override_dependencies(
         vectors=vectors,
     )
 
+    service = IngestionService(
+        parser=parser,
+        chunker=chunker,
+        embedder=embedder,
+        sparse_embedder=sparse_embedder,
+        documents=docs,
+        vectors=vectors,
+    )
+
     async def _get_service() -> AsyncGenerator[IngestionService, None]:
-        service = IngestionService(
-            parser=parser,
-            chunker=chunker,
-            embedder=embedder,
-            sparse_embedder=sparse_embedder,
-            documents=docs,
-            vectors=vectors,
-        )
         yield service
 
     async def _get_docs() -> AsyncGenerator[DocumentRepository, None]:
@@ -66,6 +68,8 @@ def _override_dependencies(
     app.dependency_overrides[get_adapters] = lambda: adapters
     app.dependency_overrides[get_ingestion_service] = _get_service
     app.dependency_overrides[get_request_document_repo] = _get_docs
+    # Background finalize runs against the same in-memory repo/vectors (no real DB).
+    app.dependency_overrides[get_finalizer] = lambda: service.finalize_safe
 
 
 @pytest.fixture(autouse=True)
