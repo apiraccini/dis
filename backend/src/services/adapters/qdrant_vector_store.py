@@ -114,6 +114,31 @@ class QdrantVectorStore:
             ),
         )
 
+    async def get_chunks(
+        self,
+        document_id: UUID,
+        chunk_indices: list[int],
+    ) -> list[ChunkPayload]:
+        # Deterministic point ids make this a direct retrieve — no scroll/filter needed.
+        ids = [self._point_id(document_id, i) for i in set(chunk_indices)]
+        records = await self._client.retrieve(
+            self._collection, ids=ids, with_payload=True, with_vectors=False
+        )
+        chunks: list[ChunkPayload] = []
+        for r in records:
+            payload = r.payload
+            assert payload is not None  # with_payload=True always returns it
+            chunks.append(
+                ChunkPayload(
+                    document_id=UUID(payload[F_DOCUMENT_ID]),
+                    document_name=payload[F_DOCUMENT_NAME],
+                    tags=list(payload.get(F_TAGS, [])),
+                    chunk_index=payload[F_CHUNK_INDEX],
+                    text=payload[F_TEXT],
+                )
+            )
+        return sorted(chunks, key=lambda c: c.chunk_index)
+
     async def search(
         self,
         query: list[float],

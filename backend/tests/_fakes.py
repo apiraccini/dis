@@ -33,6 +33,9 @@ class FakeChunker:
         self._words_per_chunk = words_per_chunk
         self.calls: list[str] = []
 
+    def count_tokens(self, text: str) -> int:
+        return len(text.split())
+
     def chunk(self, text: str) -> list[str]:
         self.calls.append(text)
         words = text.split()

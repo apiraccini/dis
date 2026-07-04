@@ -227,9 +227,7 @@ async def test_update_status_raises_on_missing(
         await repo.update_status(doc_id, DocumentStatus.ready)
 
 
-async def test_update_chunk_count_happy(
-    repo: SqlModelDocumentRepository, session: AsyncMock
-) -> None:
+async def test_update_counts_happy(repo: SqlModelDocumentRepository, session: AsyncMock) -> None:
     doc_id = uuid4()
     existing = _mock_doc(content_hash='h1')
     get_mock = MagicMock()
@@ -238,14 +236,16 @@ async def test_update_chunk_count_happy(
     refresh_mock.first.return_value = existing
     session.exec = AsyncMock(side_effect=[get_mock, refresh_mock])
 
-    result = await repo.update_chunk_count(doc_id, 42)
+    result = await repo.update_counts(doc_id, 42, 1234)
 
     assert result.chunk_count == 42
+    assert result.token_count == 1234
     assert existing.chunk_count == 42
+    assert existing.token_count == 1234
     session.add.assert_called_once_with(existing)
 
 
-async def test_update_chunk_count_raises_on_missing(
+async def test_update_counts_raises_on_missing(
     repo: SqlModelDocumentRepository, session: AsyncMock
 ) -> None:
     doc_id = uuid4()
@@ -254,7 +254,7 @@ async def test_update_chunk_count_raises_on_missing(
     session.exec = AsyncMock(side_effect=[get_mock])
 
     with pytest.raises(DocumentNotFoundError, match=f'no document with id {doc_id}'):
-        await repo.update_chunk_count(doc_id, 1)
+        await repo.update_counts(doc_id, 1, 1)
 
 
 async def test_delete_happy(repo: SqlModelDocumentRepository, session: AsyncMock) -> None:

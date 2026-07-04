@@ -122,16 +122,18 @@ async def test_update_status_missing_raises(repo: InMemoryDocumentRepository) ->
         await repo.update_status(uuid4(), DocumentStatus.ready)
 
 
-async def test_update_chunk_count(repo: InMemoryDocumentRepository) -> None:
+async def test_update_counts(repo: InMemoryDocumentRepository) -> None:
     created = await repo.create(_doc())
     assert created.chunk_count == 0
-    updated = await repo.update_chunk_count(created.id, 42)
+    assert created.token_count == 0
+    updated = await repo.update_counts(created.id, 42, 1234)
     assert updated.chunk_count == 42
+    assert updated.token_count == 1234
 
 
-async def test_update_chunk_count_missing_raises(repo: InMemoryDocumentRepository) -> None:
+async def test_update_counts_missing_raises(repo: InMemoryDocumentRepository) -> None:
     with pytest.raises(DocumentNotFoundError):
-        await repo.update_chunk_count(uuid4(), 1)
+        await repo.update_counts(uuid4(), 1, 1)
 
 
 async def test_delete_removes_document(repo: InMemoryDocumentRepository) -> None:

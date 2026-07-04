@@ -10,6 +10,7 @@ export interface DocumentResponse {
   status: DocumentStatus
   error_message: string | null
   chunk_count: number
+  token_count: number
   created_at: string
   updated_at: string
 }

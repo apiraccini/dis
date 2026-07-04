@@ -4,7 +4,7 @@ React SPA for document management, consuming the REST API under `/api/*`. Minima
 
 ## Document list
 
-- **Requirement: Document list view** — The UI SHALL display all documents in a table showing filename, tags, status, size, chunk count, and upload date.
+- **Requirement: Document list view** — The UI SHALL display all documents in a table showing filename, tags, status, size, chunk count, token count, and upload date.
   - Scenario: rows render — GIVEN the API returns documents, WHEN the view loads, THEN one row per document is shown with its metadata.
   - Scenario: empty state — GIVEN the API returns zero documents, WHEN the view loads, THEN an empty-state message is shown instead of a table.
   - Scenario: loading state — GIVEN the list request is in flight, WHEN the view loads, THEN a loading indicator is shown.

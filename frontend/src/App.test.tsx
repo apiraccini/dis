@@ -14,6 +14,7 @@ function makeDoc(overrides: Partial<DocumentResponse> = {}): DocumentResponse {
     status: 'ready',
     error_message: null,
     chunk_count: 3,
+    token_count: 1200,
     created_at: '2026-06-29T10:00:00Z',
     updated_at: '2026-06-29T10:00:00Z',
     ...overrides,
@@ -50,6 +51,7 @@ describe('App', () => {
     await waitFor(() => expect(screen.getByText('report.pdf')).toBeDefined())
     expect(screen.getByText('compliance')).toBeDefined()
     expect(screen.getByText('ready')).toBeDefined()
+    expect(screen.getByText('1,200')).toBeDefined()
   })
 
   it('shows an error state with retry when the list request fails', async () => {

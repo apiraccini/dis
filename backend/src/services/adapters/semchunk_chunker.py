@@ -27,6 +27,9 @@ class SemchunkChunker:
         # Memoize per-instance so repeated chunking of identical text is cheap.
         self._counter = functools.lru_cache(maxsize=4096)(token_counter)
 
+    def count_tokens(self, text: str) -> int:
+        return self._counter(text)
+
     def chunk(self, text: str) -> list[str]:
         if not text or not text.strip():
             return []

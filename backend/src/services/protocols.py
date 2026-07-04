@@ -12,6 +12,8 @@ class Parser(Protocol):
 class Chunker(Protocol):
     def chunk(self, text: str) -> list[str]: ...
 
+    def count_tokens(self, text: str) -> int: ...
+
 
 @runtime_checkable
 class Embedder(Protocol):

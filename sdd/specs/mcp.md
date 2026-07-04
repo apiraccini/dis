@@ -14,7 +14,8 @@
 ## Tool: list_documents
 
 - **Requirement: list_documents tool** — `list_documents` SHALL return paginated
-  documents (id, filename, tags, status, chunk_count, created_at) without parsed_text
+  documents (id, filename, tags, status, chunk_count, token_count, created_at)
+  without parsed_text
   - Input: `offset` (int, default 0), `limit` (int, default 100, max 500),
     `tag` (optional str)
   - Output: list of document summaries + `total` count
@@ -53,6 +54,28 @@
     `document_ids`, THEN only chunks from those documents are returned
   - Scenario: combined filters — WHEN both `tags` and `document_ids` are specified,
     THEN only chunks matching both filters are returned (intersection)
+
+## Tool: get_document
+
+- **Requirement: get_document tool** — `get_document` SHALL return document content by id:
+  the full parsed text when `chunks` is omitted, or the stored text of the requested chunk
+  indices when `chunks` is provided
+  - Input: `document_id` (str UUID, required), `chunks` (optional list[int], indices as
+    returned by `search` hits)
+  - Output: header (filename, id, tags, status, chunk_count, token_count) followed by the
+    full text or the requested chunks labeled by index
+  - Scenario: chunk read — GIVEN a search hit referencing chunk 3, WHEN `get_document` is
+    called with `chunks=[2,3,4]`, THEN exactly those stored chunks are returned, matching
+    the text search would return for them
+  - Scenario: unknown id — GIVEN a non-existent or malformed document id, WHEN called,
+    THEN a tool error is returned (same error surface as `search` filters)
+  - Scenario: out-of-range chunk — GIVEN a document with 4 chunks, WHEN `chunks=[7]` is
+    requested, THEN a tool error states the valid index range
+
+- **Requirement: Full-read size cap** — `get_document` SHALL refuse a full-document read
+  when the document's token_count exceeds a configured maximum (default 20000), with an
+  error directing the agent to request specific `chunks` or use `search` instead; chunk
+  reads SHALL never be size-capped
 
 ## Tools superseded by search: search_by_tag, search_by_document
 

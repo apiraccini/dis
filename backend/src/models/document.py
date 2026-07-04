@@ -55,6 +55,8 @@ class Document(SQLModel, table=True):
     status: DocumentStatus = Field(default=DocumentStatus.processing)
     error_message: str | None = None
     chunk_count: int = Field(default=0)
+    # Tokens in parsed_text (chunker's tokenizer) — lets MCP clients judge read cost.
+    token_count: int = Field(default=0)
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(UTC),
         sa_column=Column(TIMESTAMP(timezone=True), nullable=False),

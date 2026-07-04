@@ -14,7 +14,7 @@ FastAPI app serving the REST API, ingestion pipeline, and MCP server (the core o
 ```
 src/
 ├── main.py              FastAPI app: CORS, /health, mounts /mcp, combines lifespans
-├── mcp_server.py        FastMCP instance + http_app() (path=/, stateless, json) + 3 knowledge-base tools
+├── mcp_server.py        FastMCP instance + http_app() (path=/, stateless, json) + 4 knowledge-base tools
 ├── db.py                async engine + session factory + init_db (create_all)
 ├── core/
 │   ├── config.py        Settings (env vars, dev defaults)

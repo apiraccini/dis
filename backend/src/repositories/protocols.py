@@ -57,10 +57,11 @@ class DocumentRepository(Protocol):
         error_message: str | None = None,
     ) -> Document: ...
 
-    async def update_chunk_count(
+    async def update_counts(
         self,
         document_id: UUID,
         chunk_count: int,
+        token_count: int,
     ) -> Document: ...
 
     async def delete(self, document_id: UUID) -> None: ...
@@ -115,6 +116,9 @@ class VectorStore(Protocol):
     - `search` fuses dense and sparse retrieval (RRF) and returns at most
       `top_k` hits; `tags` (OR) and `document_ids` (membership) are pushed
       into the query.
+    - `get_chunks` returns the stored payloads for the requested chunk
+      indices, sorted by index; missing indices are omitted (callers
+      validate ranges).
     """
 
     async def upsert(
@@ -126,6 +130,12 @@ class VectorStore(Protocol):
     ) -> None: ...
 
     async def delete_by_document(self, document_id: UUID) -> None: ...
+
+    async def get_chunks(
+        self,
+        document_id: UUID,
+        chunk_indices: list[int],
+    ) -> list[ChunkPayload]: ...
 
     async def search(
         self,

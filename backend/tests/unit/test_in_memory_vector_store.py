@@ -180,3 +180,25 @@ async def test_delete_by_document_removes_its_chunks() -> None:
     await store.delete_by_document(doc_id)
 
     assert await store.search(query=[1.0], sparse_query=_empty_sparse(), top_k=10) == []
+
+
+async def test_get_chunks_returns_requested_indices_sorted() -> None:
+    store = InMemoryVectorStore()
+    doc_id = uuid4()
+    chunks = [_chunk(doc_id, index=i, text=f'text {i}') for i in range(4)]
+    await store.upsert(doc_id, chunks, [[1.0]] * 4, [_empty_sparse()] * 4)
+
+    got = await store.get_chunks(doc_id, [3, 1])
+
+    assert [(c.chunk_index, c.text) for c in got] == [(1, 'text 1'), (3, 'text 3')]
+
+
+async def test_get_chunks_omits_missing_indices() -> None:
+    store = InMemoryVectorStore()
+    doc_id = uuid4()
+    await store.upsert(doc_id, [_chunk(doc_id, index=0)], [[1.0]], [_empty_sparse()])
+
+    got = await store.get_chunks(doc_id, [0, 7])
+
+    assert [c.chunk_index for c in got] == [0]
+    assert await store.get_chunks(uuid4(), [0]) == []

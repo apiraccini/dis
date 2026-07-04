@@ -4,7 +4,7 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from src.mcp_server import _search, list_documents, list_tags, search
+from src.mcp_server import _search, get_document, list_documents, list_tags, search
 from src.models.document import Document
 from src.repositories.in_memory import InMemoryDocumentRepository, InMemoryVectorStore
 from src.services.factory import Adapters
@@ -232,5 +232,103 @@ async def test_ping_tool_not_registered() -> None:
     assert 'list_documents' in tool_names
     assert 'list_tags' in tool_names
     assert 'search' in tool_names
+    assert 'get_document' in tool_names
     assert 'search_by_tag' not in tool_names
     assert 'search_by_document' not in tool_names
+
+
+# ── get_document ────────────────────────────────────────────────────────
+
+
+async def _seed_readable_doc(
+    repo: InMemoryDocumentRepository,
+    vectors: InMemoryVectorStore,
+    *,
+    n_chunks: int = 3,
+    token_count: int = 100,
+) -> Document:
+    doc = await _seed_doc(repo, filename='guide.pdf', tags=['hr'])
+    from src.repositories.protocols import ChunkPayload
+
+    await vectors.upsert(
+        doc.id,
+        [
+            ChunkPayload(
+                document_id=doc.id,
+                document_name=doc.filename,
+                tags=list(doc.tags),
+                chunk_index=i,
+                text=f'chunk {i} text',
+            )
+            for i in range(n_chunks)
+        ],
+        [[0.5, 0.5, 0.5, 0.5]] * n_chunks,
+        [_word_sparse_vector(f'chunk {i} text') for i in range(n_chunks)],
+    )
+    return await repo.update_counts(doc.id, n_chunks, token_count)
+
+
+async def test_get_document_full_read(
+    repo: InMemoryDocumentRepository, vectors: InMemoryVectorStore, adapters: Adapters
+) -> None:
+    doc = await _seed_readable_doc(repo, vectors)
+
+    result = await get_document(document_id=str(doc.id), repo=repo, adapters=adapters)
+
+    assert 'guide.pdf' in result
+    assert '100 tokens' in result
+    assert 'content' in result  # parsed_text from _seed_doc
+
+
+async def test_get_document_chunk_read_matches_stored_text(
+    repo: InMemoryDocumentRepository, vectors: InMemoryVectorStore, adapters: Adapters
+) -> None:
+    doc = await _seed_readable_doc(repo, vectors)
+
+    result = await get_document(
+        document_id=str(doc.id), chunks=[2, 0], repo=repo, adapters=adapters
+    )
+
+    assert '[chunk 0]\nchunk 0 text' in result
+    assert '[chunk 2]\nchunk 2 text' in result
+    assert 'chunk 1 text' not in result
+
+
+async def test_get_document_full_read_refused_over_token_cap(
+    repo: InMemoryDocumentRepository, vectors: InMemoryVectorStore, adapters: Adapters
+) -> None:
+    from fastmcp.exceptions import ToolError
+
+    from src.core.config import settings
+
+    doc = await _seed_readable_doc(repo, vectors, token_count=settings.max_document_read_tokens + 1)
+
+    with pytest.raises(ToolError, match=r'too large.*chunks.*search'):
+        await get_document(document_id=str(doc.id), repo=repo, adapters=adapters)
+
+    # Chunk reads are never capped.
+    result = await get_document(document_id=str(doc.id), chunks=[0], repo=repo, adapters=adapters)
+    assert 'chunk 0 text' in result
+
+
+async def test_get_document_out_of_range_chunk(
+    repo: InMemoryDocumentRepository, vectors: InMemoryVectorStore, adapters: Adapters
+) -> None:
+    from fastmcp.exceptions import ToolError
+
+    doc = await _seed_readable_doc(repo, vectors, n_chunks=3)
+
+    with pytest.raises(ToolError, match=r'out of range: \[7\]; valid range is 0..2'):
+        await get_document(document_id=str(doc.id), chunks=[0, 7], repo=repo, adapters=adapters)
+
+
+async def test_get_document_invalid_and_missing_id(
+    repo: InMemoryDocumentRepository, adapters: Adapters
+) -> None:
+    from fastmcp.exceptions import ToolError
+
+    with pytest.raises(ToolError, match='invalid document id'):
+        await get_document(document_id='not-a-uuid', repo=repo, adapters=adapters)
+
+    with pytest.raises(ToolError, match='DocumentNotFoundError'):
+        await get_document(document_id=str(uuid4()), repo=repo, adapters=adapters)

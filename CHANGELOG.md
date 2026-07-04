@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- **`get_document` MCP tool**: read a document by ID — full parsed text or specific chunk indices (fetched from Qdrant by deterministic point ID, matching `search` hits exactly). Full reads are refused above a configured token limit (`MAX_DOCUMENT_READ_TOKENS`, default 20000) with a hint to use `chunks` or `search`.
+- **Per-document token count**: computed at ingestion with the chunker's tokenizer, persisted, and exposed in REST responses, `list_documents` MCP output, and the frontend table — lets agents judge full-read cost up front.
+
 ## [0.1.1] - 2026-07-04
 
 ### Added

@@ -6,7 +6,8 @@
 - **Requirement: Tag listing** — The set of unique tags across all documents SHALL be derivable from the document store (distinct tag values).
 - **Requirement: Document lifecycle status** — A document SHALL carry a status drawn from `processing`, `ready`, `failed`, defaulting to `processing` (documents are created as `processing` by ingestion `prepare`), plus an optional error message used when status is `failed`.
 - **Requirement: Chunk count** — A document SHALL carry a chunk count defaulting to zero, updated by the ingestion layer after embedding (not by repository creation).
-- **Requirement: Document metadata fields** — A document SHALL persist filename, content-type, size in bytes, parsed full text, content hash, tags, status, error message, chunk count, created_at, and updated_at.
+- **Requirement: Token count** — A document SHALL carry a token count of its parsed text (same tokenizer as chunking), defaulting to zero and set by the ingestion layer together with chunk count.
+- **Requirement: Document metadata fields** — A document SHALL persist filename, content-type, size in bytes, parsed full text, content hash, tags, status, error message, chunk count, token count, created_at, and updated_at.
 - **Requirement: Hard delete** — Deleting a document SHALL cascade to the vector store — the service layer, not the repository, SHALL own this coordination. The repository remains responsible only for the relational delete. If vector deletion fails, the Postgres deletion SHALL still proceed and the error SHALL be logged.
 - **Requirement: Upload pipeline** — Upload SHALL call `prepare` synchronously (parse → hash → dedup → create as `processing`) and schedule `finalize` (chunk → embed → upsert → mark `ready`) as a background task.
 - **Requirement: Dedup early-exit** — When content-hash dedup during `prepare` finds an existing document, upload SHALL raise a duplicate-document error immediately without scheduling a background task.

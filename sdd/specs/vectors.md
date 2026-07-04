@@ -1,4 +1,6 @@
-- **Requirement: VectorStore protocol** — A vector store SHALL expose an async Protocol with operations: upsert, delete_by_document, search.
+- **Requirement: VectorStore protocol** — A vector store SHALL expose an async Protocol with operations: upsert, delete_by_document, search, get_chunks.
+- **Requirement: Chunk retrieval by index** — The vector store SHALL expose a get-chunks operation returning the stored chunk payloads for a document id and a list of chunk indices, without recomputing chunking; missing indices are omitted from the result (the caller validates ranges).
+  - Scenario: stored text fidelity — GIVEN chunks upserted at ingestion, WHEN get-chunks is called with indices seen in search hits, THEN the returned text is identical to those hits' text.
 - **Requirement: Chunk payload** — A chunk record SHALL carry document_id, document_name, tags, chunk_index, and text.
 - **Requirement: Sparse vector in chunk payload** — A chunk payload SHALL carry a sparse vector representation (lexical/BM25 term weights) alongside its dense vector when passed to `upsert`.
 - **Requirement: Search result** — A search hit SHALL carry document_id, document_name, tags, chunk_index, text, and a similarity score; the score reflects RRF fusion rank rather than raw cosine similarity.
