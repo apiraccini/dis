@@ -19,15 +19,15 @@ query text to dense/sparse embeddings to a fused Qdrant lookup.
 - **Qdrant** — stores dense and sparse vectors per chunk, with payload
   filtering by document id and tag, and performs the RRF fusion of both
   vector types at query time.
-- **MCP server** — exposes the knowledge base as agent-ready tools
-  (`search`, `search_by_tag`, `search_by_document`, `list_documents`,
-  `list_tags`) gated by a static bearer token, separate from the REST API's
-  network-internal trust boundary.
+- **MCP server** — exposes the knowledge base as three agent-ready tools
+  (`search` with optional tag and document filters, `list_documents`,
+  `list_tags`) gated by a static bearer token, separate from the
+  unauthenticated REST API.
 
 ## Deployment Topology
 
-All five services (backend, frontend, Postgres, Qdrant, and the reverse
-proxy) run as separate containers under one docker-compose stack in local
+All four services (backend, frontend, Postgres, and Qdrant) run as
+separate containers under one docker-compose stack in local
 development and staging. Production splits the backend into multiple
 replicas behind a load balancer, while Postgres and Qdrant remain
 single-instance — neither has been sharded yet, since document volume has not

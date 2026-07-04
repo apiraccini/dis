@@ -215,10 +215,11 @@ project-specific rules layered on top:
 Write endpoints that could plausibly be retried by a client (uploads, in
 particular) must be idempotent on some caller-supplied or content-derived
 key. The document upload endpoint uses the SHA-256 hash of the raw upload
-bytes as that key — a retried upload of the same bytes returns the existing
-document rather than creating a duplicate. This is deliberate: network
-retries after a timeout are common, and silently creating duplicate documents
-would corrupt search results by returning the same content twice.
+bytes as that key — a retried upload of the same bytes is rejected with a
+409 Conflict pointing at the existing document, so no duplicate is ever
+created. This is deliberate: network retries after a timeout are common, and
+silently creating duplicate documents would corrupt search results by
+returning the same content twice.
 
 ## Style Preferences Beyond the Linter
 

@@ -33,9 +33,6 @@ class Settings(BaseSettings):
     chunk_size_tokens: int = 1024
     chunk_overlap_tokens: int = 100
 
-    # When true, ingestion uses a deterministic in-process fake embedder (e2e only).
-    use_fake_embedder: bool = False
-
     # When true, the parser enables MarkItDown's markitdown-ocr plugin with a
     # vision-LLM client (via OpenRouter) so scanned/image-only pages extract text.
     use_vlm: bool = False
