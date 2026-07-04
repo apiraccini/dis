@@ -22,4 +22,4 @@ dist-ssr/
 *.swp
 
 # Private files
-REQUEST.md
+private/

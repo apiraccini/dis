@@ -9,7 +9,6 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from src.core.config import Settings
 from src.repositories.document_repo import SqlModelDocumentRepository
 from src.repositories.protocols import VectorStore
-from src.services.adapters.fake_embedder import FakeEmbedder
 from src.services.adapters.fastembed_sparse import FastEmbedSparseEmbedder
 from src.services.adapters.markitdown_parser import MarkItDownParser
 from src.services.adapters.openrouter_embedder import OpenRouterEmbedder
@@ -57,26 +56,22 @@ def build_adapters(settings: Settings) -> Adapters:
         overlap=settings.chunk_overlap_tokens,
     )
     sparse_embedder = FastEmbedSparseEmbedder()
-    if settings.use_fake_embedder:
-        embedder: Embedder = FakeEmbedder(dimensions=settings.embedding_dimensions)
-        query_embedder: Embedder = embedder
-    else:
-        embedder = OpenRouterEmbedder(
-            model=settings.embedding_model,
-            dimensions=settings.embedding_dimensions,
-            batch_size=settings.embedding_batch_size,
-            input_type=settings.embedding_input_type_document,
-            base_url=settings.embedding_base_url,
-            api_key=settings.openrouter_api_key,
-        )
-        query_embedder = OpenRouterEmbedder(
-            model=settings.embedding_model,
-            dimensions=settings.embedding_dimensions,
-            batch_size=settings.embedding_batch_size,
-            input_type=settings.embedding_input_type_query,
-            base_url=settings.embedding_base_url,
-            api_key=settings.openrouter_api_key,
-        )
+    embedder = OpenRouterEmbedder(
+        model=settings.embedding_model,
+        dimensions=settings.embedding_dimensions,
+        batch_size=settings.embedding_batch_size,
+        input_type=settings.embedding_input_type_document,
+        base_url=settings.embedding_base_url,
+        api_key=settings.openrouter_api_key,
+    )
+    query_embedder = OpenRouterEmbedder(
+        model=settings.embedding_model,
+        dimensions=settings.embedding_dimensions,
+        batch_size=settings.embedding_batch_size,
+        input_type=settings.embedding_input_type_query,
+        base_url=settings.embedding_base_url,
+        api_key=settings.openrouter_api_key,
+    )
     return Adapters(
         parser=parser,
         chunker=chunker,

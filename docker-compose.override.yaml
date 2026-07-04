@@ -1,0 +1,12 @@
+# Dev-only overrides
+# Publishes the database ports on the host for local inspection
+# Not used in production
+services:
+  db:
+    ports:
+      - "5432:5432"
+
+  qdrant:
+    ports:
+      - "6333:6333"
+      - "6334:6334"
