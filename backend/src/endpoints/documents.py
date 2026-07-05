@@ -79,10 +79,10 @@ async def upload_document(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=str(exc),
         ) from None
-    except DuplicateDocumentError as exc:
+    except DuplicateDocumentError:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=str(exc),
+            detail='A document with identical content already exists.',
         ) from None
 
     background_tasks.add_task(finalize, prepared.id)

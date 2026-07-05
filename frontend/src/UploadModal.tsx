@@ -23,7 +23,11 @@ export function UploadModal({ onClose, onUploaded }: Props) {
       onUploaded()
       onClose()
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Upload failed')
+      if (err instanceof ApiError) {
+        setError(err.status === 413 ? 'File is too large to upload.' : err.message)
+      } else {
+        setError('Upload failed')
+      }
     } finally {
       setSubmitting(false)
     }
