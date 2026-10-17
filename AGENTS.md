@@ -18,8 +18,8 @@ Backend infrastructure for a tagged-document knowledge base: a document-manageme
 - `make logs`: follow service logs
 
 ## Layout
-- `backend/`: FastAPI app (REST + ingestion) + MCP server, see `backend/CLAUDE.md`
-- `frontend/`: React app, see `frontend/CLAUDE.md`
+- `backend/`: FastAPI app (REST + ingestion) + MCP server, see `backend/AGENTS.md`
+- `frontend/`: React app, see `frontend/AGENTS.md`
 - `sdd/`: specs and change folders
 - `docs/`: Part 1 answers
 

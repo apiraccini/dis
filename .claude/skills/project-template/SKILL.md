@@ -28,7 +28,6 @@ Standard monorepo layout for new apps: FastAPI backend, React frontend, Docker C
 ```
 project/
 ├── AGENTS.md               # Agent context: guidelines, skills, commands
-├── CLAUDE.md               # Pointer to AGENTS.md
 ├── README.md               # Human overview + backlog
 ├── .env.example            # Every env var with dev defaults
 ├── .pre-commit-config.yaml

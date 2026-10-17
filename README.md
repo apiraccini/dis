@@ -46,7 +46,7 @@ The repository is organised with this layout:
 ├── .env.example             Environment template (copy to .env)
 ├── .mcp.json                MCP client config pointing at the local DIS server
 ├── CHANGELOG.md             Release history
-├── CLAUDE.md                Agent instructions (workflow, commands, layout)
+├── AGENTS.md                Agent instructions (workflow, commands, layout)
 ├── docker-compose.override.yaml  Dev-only overrides (publishes db/qdrant ports on the host)
 ├── docker-compose.yaml      Full stack (frontend, backend, db, qdrant)
 ├── Makefile                 lint / test / build / start / stop / logs

@@ -5,7 +5,6 @@ Each level (root, backend, frontend) has an AGENTS.md and a README.md with disti
 - AGENTS.md: agent-facing. How to work on the project: guidelines, skills to load, tooling, quick commands, rules.
 - README.md: human-facing. Overview, stack, tree structure, development, deployment, backlog. Agents read it too, so keep it accurate.
 - Style for both: short, information-dense, actionable. One-liner bullets with sub-bullets, no filler, no decoration.
-- A root `CLAUDE.md` contains a single pointer line to `AGENTS.md`.
 
 ## Root `AGENTS.md`
 
